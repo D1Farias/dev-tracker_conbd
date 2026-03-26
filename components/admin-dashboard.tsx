@@ -11,7 +11,12 @@ import { ManageUsersDialog } from "./manage-users-dialog";
 import { ManageTasksDialog } from "./manage-tasks-dialog";
 import { DeveloperActivityChart } from "./developer-activity-chart";
 import { Button } from "@/components/ui/button";
-import { Settings, Users, ClipboardList } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Settings, Users, ClipboardList, BarChart2 } from "lucide-react";
 
 function getWeekDates(offset: number = 0): string[] {
   const today = new Date();
@@ -73,6 +78,19 @@ export function AdminDashboard() {
               <Settings className="h-4 w-4 mr-2" />
               Proyectos
             </Button>
+
+            {/* Chart Popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <BarChart2 className="h-4 w-4 mr-2" />
+                  Actividad
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[420px] p-0" align="end">
+                <DeveloperActivityChart weekDates={weekDates} />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -85,9 +103,6 @@ export function AdminDashboard() {
           selectedProject={selectedProject}
           selectedDeveloper={selectedDeveloper}
         />
-
-        {/* Activity Chart */}
-        <DeveloperActivityChart weekDates={weekDates} />
       </main>
 
       <ManageProjectsDialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog} />
