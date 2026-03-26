@@ -37,7 +37,14 @@ export async function DELETE(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const db = await connectDB();
+    
+    // Eliminar dependencias primero para no romper las Foreign Keys
+    await db.query("DELETE FROM work_entries WHERE projectId = ?", [id]);
+    await db.query("DELETE FROM tasks WHERE projectId = ?", [id]);
+    
+    // Ahora sí eliminar el proyecto
     await db.query("DELETE FROM projects WHERE id = ?", [id]);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting project:", error);

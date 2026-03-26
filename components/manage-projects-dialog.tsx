@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Eye } from "lucide-react";
 
 interface ManageProjectsDialogProps {
   open: boolean;
@@ -26,6 +26,7 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "", color: PROJECT_COLORS[0].value });
+  const [showDetails, setShowDetails] = useState<string | null>(null);
 
   const handleAdd = () => {
     if (formData.name.trim()) {
@@ -56,10 +57,17 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
     setIsAdding(false);
     setFormData({ name: "", description: "", color: PROJECT_COLORS[0].value });
   };
+  // Mostrar datos en el boton detalles
+  const handleShowDetails = (id: string) => {
+    setShowDetails(id);
+  };
+
+  const projectDetails = projects.find(p => p.id === showDetails);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Gestionar Proyectos</DialogTitle>
           <DialogDescription>
@@ -98,9 +106,8 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
                                 key={color.value}
                                 type="button"
                                 onClick={() => setFormData({ ...formData, color: color.value })}
-                                className={`w-8 h-8 rounded-full ${color.bg} ${
-                                  formData.color === color.value ? "ring-2 ring-offset-2 ring-primary" : ""
-                                }`}
+                                className={`w-8 h-8 rounded-full ${color.bg} ${formData.color === color.value ? "ring-2 ring-offset-2 ring-primary" : ""
+                                  }`}
                               />
                             ))}
                           </div>
@@ -127,6 +134,9 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(project.id)}>
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleShowDetails(project.id)}>
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -173,9 +183,8 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
                           key={color.value}
                           type="button"
                           onClick={() => setFormData({ ...formData, color: color.value })}
-                          className={`w-8 h-8 rounded-full ${color.bg} ${
-                            formData.color === color.value ? "ring-2 ring-offset-2 ring-primary" : ""
-                          }`}
+                          className={`w-8 h-8 rounded-full ${color.bg} ${formData.color === color.value ? "ring-2 ring-offset-2 ring-primary" : ""
+                            }`}
                         />
                       ))}
                     </div>
@@ -198,5 +207,29 @@ export function ManageProjectsDialog({ open, onOpenChange }: ManageProjectsDialo
         </div>
       </DialogContent>
     </Dialog>
+
+      {/* Modal de detalles del proyecto */}
+      <Dialog open={!!showDetails} onOpenChange={(open) => !open && setShowDetails(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalles del Proyecto</DialogTitle>
+          </DialogHeader>
+          {projectDetails && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full ${getColorBgClass(projectDetails.color)} shadow-sm`} />
+                <h3 className="text-2xl font-bold">{projectDetails.name}</h3>
+              </div>
+              <div className="bg-muted/50 p-4 rounded-lg border border-border/50">
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Descripción</h4>
+                <p className="text-foreground leading-relaxed">
+                  {projectDetails.description || "Este proyecto no tiene una descripción proporcionada."}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

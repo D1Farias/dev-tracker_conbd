@@ -3,6 +3,23 @@ import { connectDB } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+export async function GET(req: Request, context: any) {
+  try {
+    const { id } = await context.params;
+    const db = await connectDB();
+    const [rows]: any = await db.query("SELECT * FROM work_entries WHERE id = ?", [id]);
+    
+    if (!rows || rows.length === 0) {
+      return NextResponse.json({ error: "Work entry not found" }, { status: 404 });
+    }
+    
+    return NextResponse.json(rows[0]);
+  } catch (error) {
+    console.error("Error fetching work entry:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
 export async function PUT(req: Request, context: any) {
   try {
     const { id } = await context.params;

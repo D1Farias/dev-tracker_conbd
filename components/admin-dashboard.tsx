@@ -9,6 +9,7 @@ import { ProjectLegend } from "./project-legend";
 import { ManageProjectsDialog } from "./manage-projects-dialog";
 import { ManageUsersDialog } from "./manage-users-dialog";
 import { ManageTasksDialog } from "./manage-tasks-dialog";
+import { DeveloperActivityChart } from "./developer-activity-chart";
 import { Button } from "@/components/ui/button";
 import { Settings, Users, ClipboardList } from "lucide-react";
 
@@ -84,6 +85,9 @@ export function AdminDashboard() {
           selectedProject={selectedProject}
           selectedDeveloper={selectedDeveloper}
         />
+
+        {/* Activity Chart */}
+        <DeveloperActivityChart weekDates={weekDates} />
       </main>
 
       <ManageProjectsDialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog} />

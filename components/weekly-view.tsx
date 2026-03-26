@@ -113,12 +113,12 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                       const activeProjectIds = Array.from(new Set(devEntries.map(e => e.projectId)));
                       
                       const devTasks = tasks.filter(t => 
-                        (t.assignedTo === developer.id || (!t.assignedTo && activeProjectIds.includes(t.projectId))) &&
+                        t.assignedTo === developer.id &&
                         t.status !== 'completed'
                       );
 
                       if (devTasks.length === 0) {
-                        return <div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground/50 text-center">Sin tareas<br/>pendientes</span></div>;
+                        return <div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground/50 text-center">Sin tareas<br/>asignadas</span></div>;
                       }
 
                       return devTasks.map(task => {
@@ -131,9 +131,6 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                               <Badge variant="secondary" className={`text-[9px] px-1 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent`}>
                                 {project.name}
                               </Badge>
-                              {task.assignedTo === developer.id && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/30 text-primary">Para ti</Badge>
-                              )}
                             </div>
                           </div>
                         );
@@ -164,23 +161,37 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                                 const project = getProjectById(entry.projectId);
                                 if (!project) return null;
 
+                                const pTasks = tasks.filter(t => t.projectId === project.id);
+                                const availableCount = pTasks.filter(t => !t.assignedTo && t.status !== 'completed').length;
+                                const inProgressCount = pTasks.filter(t => t.assignedTo === developer.id && t.status === 'in-progress').length;
+                                const completedCount = pTasks.filter(t => t.assignedTo === developer.id && t.status === 'completed').length;
+
                                 return (
                                   <div
                                     key={entry.id}
-                                    className={`p-2 rounded-lg border-l-3 ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)}`}
+                                    className={`flex flex-col p-2 rounded-lg border-l-3 ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)}`}
                                   >
-                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                    <div className="flex items-center justify-between gap-1 mb-1.5">
                                       <Badge
                                         variant="secondary"
-                                        className={`text-xs px-1.5 py-0 h-5 ${getColorTextClass(project.color)} bg-transparent`}
+                                        className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent`}
                                       >
                                         {project.name}
                                       </Badge>
-                                      <span className={`text-xs font-medium ${getColorTextClass(project.color)}`}>
+                                      <span className={`text-[10px] font-medium ${getColorTextClass(project.color)}`}>
                                         {entry.hours}h
                                       </span>
                                     </div>
-                                    <p className="text-xs text-foreground/80 line-clamp-2">
+                                    
+                                    {(availableCount > 0 || inProgressCount > 0 || completedCount > 0) && (
+                                      <div className="flex flex-wrap gap-1 mb-1.5">
+                                        {availableCount > 0 && <span className="text-[9px] bg-muted/80 text-muted-foreground px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas disponibles">{availableCount} disp</span>}
+                                        {inProgressCount > 0 && <span className="text-[9px] bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas en progreso">{inProgressCount} prog</span>}
+                                        {completedCount > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas completadas">{completedCount} comp</span>}
+                                      </div>
+                                    )}
+
+                                    <p className="text-[11px] text-foreground/80 line-clamp-2 leading-tight">
                                       {entry.description}
                                     </p>
                                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { toast } from 'sonner';
 import {
   User, Project, WorkEntry, Task
 } from './data';
@@ -126,11 +127,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setWorkEntries(prev => [...prev, data.workEntry]);
+        toast.success('Registro añadido correctamente');
       } else {
-        console.error("Failed to add work entry");
+        toast.error('Error al añadir el registro');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al guardar el registro');
     }
   };
 
@@ -143,11 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         setWorkEntries(prev => prev.map(e => e.id === id ? { ...e, ...entry } : e));
+        toast.success('Registro actualizado');
       } else {
-        console.error("Failed to update work entry");
+        toast.error('Error al actualizar el registro');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al actualizar el registro');
     }
   };
 
@@ -156,11 +159,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/work-entries/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setWorkEntries(prev => prev.filter(e => e.id !== id));
+        toast.success('Registro eliminado');
       } else {
-        console.error("Failed to delete work entry");
+        toast.error('Error al eliminar el registro');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al eliminar el registro');
     }
   };
 
@@ -174,11 +178,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setProjects(prev => [...prev, data.project]);
+        toast.success(`Proyecto "${project.name}" creado`);
       } else {
-        console.error("Failed to add project");
+        toast.error('Error al crear el proyecto');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al crear el proyecto');
     }
   };
 
@@ -191,11 +196,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
+        toast.success('Proyecto actualizado');
       } else {
-        console.error("Failed to update project");
+        toast.error('Error al actualizar el proyecto');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al actualizar el proyecto');
     }
   };
 
@@ -205,11 +211,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         setProjects(prev => prev.filter(p => p.id !== id));
         setWorkEntries(prev => prev.filter(e => e.projectId !== id));
+        setTasks(prev => prev.filter(t => t.projectId !== id));
+        toast.success('Proyecto eliminado');
       } else {
-        console.error("Failed to delete project");
+        toast.error('Error al eliminar el proyecto');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al eliminar el proyecto');
     }
   };
 
@@ -223,11 +231,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUsers(prev => [...prev, data.user]);
+        toast.success(`Usuario "${newUser.name}" creado`);
       } else {
-        console.error("Failed to add user");
+        toast.error('Error al crear el usuario');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al crear el usuario');
     }
   };
 
@@ -240,11 +249,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         setUsers(prev => prev.map(u => u.id === id ? { ...u, ...userData } : u));
+        toast.success('Usuario actualizado');
       } else {
-        console.error("Failed to update user");
+        toast.error('Error al actualizar el usuario');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al actualizar el usuario');
     }
   };
 
@@ -254,11 +264,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         setUsers(prev => prev.filter(u => u.id !== id));
         setWorkEntries(prev => prev.filter(e => e.userId !== id));
+        toast.success('Usuario eliminado');
       } else {
-        console.error("Failed to delete user");
+        toast.error('Error al eliminar el usuario');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al eliminar el usuario');
     }
   };
 
@@ -272,11 +283,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setTasks(prev => [...prev, data.task]);
+        toast.success(`Tarea "${task.title}" creada`);
       } else {
-        console.error("Failed to add task");
+        toast.error('Error al crear la tarea');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al crear la tarea');
     }
   };
 
@@ -289,11 +301,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         setTasks(prev => prev.map(t => t.id === id ? { ...t, ...taskData } : t));
+        if (taskData.assignedTo) {
+          toast.success('¡Tarea asignada! Está en progreso.');
+        } else if (taskData.status === 'completed') {
+          toast.success('¡Tarea completada! 🎉');
+        } else if (taskData.status) {
+          toast.success('Estado de tarea actualizado');
+        } else {
+          toast.success('Tarea actualizada');
+        }
       } else {
-        console.error("Failed to update task");
+        toast.error('Error al actualizar la tarea');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al actualizar la tarea');
     }
   };
 
@@ -302,11 +323,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== id));
+        toast.success('Tarea eliminada');
       } else {
-        console.error("Failed to delete task");
+        toast.error('Error al eliminar la tarea');
       }
     } catch (e) {
-      console.error(e);
+      toast.error('Error de conexión al eliminar la tarea');
     }
   };
 
