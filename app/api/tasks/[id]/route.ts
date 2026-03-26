@@ -1,36 +1,34 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
 export async function PUT(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const data = await req.json();
-    const { userId, projectId, date, hours, description } = data;
-
+    const { title, description, projectId, status, assignedTo } = data;
+    
     const fieldsToUpdate: string[] = [];
     const values: any[] = [];
 
-    if (userId) { fieldsToUpdate.push("userId = ?"); values.push(userId); }
-    if (projectId) { fieldsToUpdate.push("projectId = ?"); values.push(projectId); }
-    if (date) { fieldsToUpdate.push("date = ?"); values.push(date); }
-    if (hours !== undefined) { fieldsToUpdate.push("hours = ?"); values.push(hours); }
+    if (title !== undefined) { fieldsToUpdate.push("title = ?"); values.push(title); }
     if (description !== undefined) { fieldsToUpdate.push("description = ?"); values.push(description); }
+    if (projectId !== undefined) { fieldsToUpdate.push("projectId = ?"); values.push(projectId); }
+    if (status !== undefined) { fieldsToUpdate.push("status = ?"); values.push(status); }
+    if (assignedTo !== undefined) { fieldsToUpdate.push("assignedTo = ?"); values.push(assignedTo || null); }
 
     if (fieldsToUpdate.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
     values.push(id);
-    const query = `UPDATE work_entries SET ${fieldsToUpdate.join(", ")} WHERE id = ?`;
+    const query = `UPDATE tasks SET ${fieldsToUpdate.join(", ")} WHERE id = ?`;
 
     const db = await connectDB();
     await db.query(query, values);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error updating work entry:", error);
+    console.error("Error updating task:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -39,10 +37,10 @@ export async function DELETE(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const db = await connectDB();
-    await db.query("DELETE FROM work_entries WHERE id = ?", [id]);
+    await db.query("DELETE FROM tasks WHERE id=?", [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting work entry:", error);
+    console.error("Error deleting task:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

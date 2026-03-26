@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
-  User, Project, WorkEntry
+  User, Project, WorkEntry, Task
 } from './data';
 
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
   users: User[];
   projects: Project[];
   workEntries: WorkEntry[];
+  tasks: Task[];
   error: string | null;
   login: (email: string, password: string) => boolean;
   logout: () => void;
@@ -22,6 +23,9 @@ interface AuthContextType {
   addUser: (user: Omit<User, 'id'>) => void;
   updateUser: (id: string, user: Partial<User>) => void;
   deleteUser: (id: string) => void;
+  addTask: (task: Omit<Task, 'id'>) => void;
+  updateTask: (id: string, task: Partial<Task>) => void;
+  deleteTask: (id: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [workEntries, setWorkEntries] = useState<WorkEntry[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -42,14 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (savedUser) setUser(JSON.parse(savedUser));
 
         try {
-          const [usersRes, projectsRes, entriesRes] = await Promise.all([
+          const [usersRes, projectsRes, entriesRes, tasksRes] = await Promise.all([
             fetch('/api/users'),
             fetch('/api/projects'),
-            fetch('/api/work-entries')
+            fetch('/api/work-entries'),
+            fetch('/api/tasks')
           ]);
 
-          if (!usersRes.ok || !projectsRes.ok || !entriesRes.ok) {
-            throw new Error("No se pudo obtener información de la base de datos. Verifica tu conexión a XAMPP.");
+          if (!usersRes.ok || !projectsRes.ok || !entriesRes.ok || !tasksRes.ok) {
+            throw new Error("No se pudo obtener información de la base de datos.");
           }
 
           const usersData = await usersRes.json();
@@ -73,6 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }));
             setWorkEntries(formattedEntries);
           }
+
+          const tasksData = await tasksRes.json();
+          if (Array.isArray(tasksData)) {
+            setTasks(tasksData.map((t: any) => ({ ...t, id: String(t.id), projectId: String(t.projectId) })));
+          }
+
           setError(null);
         } catch (err: any) {
           console.error("Error al obtener datos de MySQL:", err);
@@ -250,6 +262,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const addTask = async (task: Omit<Task, 'id'>) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(prev => [...prev, data.task]);
+      } else {
+        console.error("Failed to add task");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateTask = async (id: string, taskData: Partial<Task>) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData)
+      });
+      if (res.ok) {
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, ...taskData } : t));
+      } else {
+        console.error("Failed to update task");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== id));
+      } else {
+        console.error("Failed to delete task");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -276,6 +336,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       addUser,
       updateUser,
       deleteUser,
+      tasks,
+      addTask,
+      updateTask,
+      deleteTask,
     }}>
       {children}
     </AuthContext.Provider>

@@ -24,6 +24,15 @@ export interface WorkEntry {
   description: string;
 }
 
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  projectId: string;
+  status: string;
+  assignedTo?: string;
+}
+
 // Colores para proyectos
 export const PROJECT_COLORS = [
   { name: 'Azul', value: '#3b82f6', bg: 'bg-blue-500', text: 'text-blue-500' },

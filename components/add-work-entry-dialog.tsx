@@ -74,7 +74,8 @@ export function AddWorkEntryDialog({ open, onOpenChange, date, editEntry }: AddW
   };
 
   const formatDate = (dateString: string) => {
-    const d = new Date(dateString);
+    const [year, month, day] = dateString.split("-");
+    const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
   };
 

@@ -8,7 +8,8 @@ import { AddWorkEntryDialog } from "./add-work-entry-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar, Plus, Pencil, Trash2, Clock, TrendingUp, FolderKanban, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Plus, Pencil, Trash2, Clock, TrendingUp, FolderKanban, AlertCircle, ClipboardList } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function getWeekDates(offset: number = 0): string[] {
   const today = new Date();
@@ -20,7 +21,10 @@ function getWeekDates(offset: number = 0): string[] {
   for (let i = 0; i < 5; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
-    dates.push(date.toISOString().split("T")[0]);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    dates.push(`${year}-${month}-${day}`);
   }
   return dates;
 }
@@ -28,7 +32,7 @@ function getWeekDates(offset: number = 0): string[] {
 const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
 export function DeveloperDashboard() {
-  const { user, projects, workEntries, deleteWorkEntry, error } = useAuth();
+  const { user, projects, workEntries, tasks, updateTask, deleteWorkEntry, error } = useAuth();
   const [weekOffset, setWeekOffset] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
@@ -40,6 +44,12 @@ export function DeveloperDashboard() {
     if (!user) return [];
     return workEntries.filter((e) => e.userId === user.id && weekDates.includes(e.date));
   }, [user, workEntries, weekDates]);
+
+  const myTasks = useMemo(() => {
+    if (!user || !tasks) return [];
+    const myProjectIds = Array.from(new Set(workEntries.filter(e => e.userId === user.id).map(e => e.projectId)));
+    return tasks.filter(t => t.assignedTo === user.id || myProjectIds.includes(t.projectId));
+  }, [tasks, workEntries, user]);
 
   const stats = useMemo(() => {
     const totalHours = myEntries.reduce((sum, e) => sum + e.hours, 0);
@@ -69,25 +79,28 @@ export function DeveloperDashboard() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.getDate();
+    const [year, month, day] = dateString.split("-");
+    return parseInt(day, 10);
   };
 
   const formatMonth = (dateString: string) => {
-    const date = new Date(dateString);
+    const [year, month, day] = dateString.split("-");
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     return date.toLocaleDateString("es-ES", { month: "short" });
   };
 
   const formatWeekRange = () => {
     if (weekDates.length < 5) return "";
-    const start = new Date(weekDates[0]);
-    const end = new Date(weekDates[4]);
+    const [sYear, sMonth, sDay] = weekDates[0].split("-");
+    const [eYear, eMonth, eDay] = weekDates[4].split("-");
+    const start = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10));
+    const end = new Date(parseInt(eYear, 10), parseInt(eMonth, 10) - 1, parseInt(eDay, 10));
     const startStr = start.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
     const endStr = end.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
     return `${startStr} - ${endStr}`;
   };
-
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const isToday = (dateString: string) => {
     return dateString === today;
@@ -289,6 +302,78 @@ export function DeveloperDashboard() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Project Backlog / Tareas */}
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <ClipboardList className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold">Backlog de Tareas</h2>
+          </div>
+          {myTasks.length === 0 ? (
+            <Card className="border-border/50 bg-card/50">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                No tienes tareas pendientes en tus proyectos.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myTasks.map(task => {
+                const project = getProjectById(task.projectId);
+                return (
+                  <Card key={task.id} className={`border-l-4 ${project ? getColorBorderClass(project.color) : ''}`}>
+                    <CardHeader className="p-4 pb-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <h3 className="font-semibold text-sm leading-tight pr-2">{task.title}</h3>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 shrink-0 whitespace-nowrap">
+                          {task.status === 'completed' ? 'Completado' : task.status === 'in-progress' ? 'En Progreso' : 'Pendiente'}
+                        </Badge>
+                      </div>
+                      {project && (
+                         <div className={`text-xs ${getColorTextClass(project.color)} mt-1`}>{project.name}</div>
+                      )}
+                    </CardHeader>
+                    <CardContent className="p-4 pt-1">
+                      <p className="text-xs text-foreground/80 line-clamp-3 mb-3">{task.description}</p>
+                      {task.assignedTo === user?.id ? (
+                        <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border/50">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tu Estado</span>
+                          <Select 
+                            value={task.status} 
+                            onValueChange={(val) => updateTask(task.id, { status: val })}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-muted/50 border-border/50">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pendiente</SelectItem>
+                              <SelectItem value="in-progress">En Progreso</SelectItem>
+                              <SelectItem value="completed">Completado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : !task.assignedTo ? (
+                        <div className="flex justify-end mt-4 pt-4 border-t border-border/50">
+                          <Button 
+                            size="sm" 
+                            variant="default" 
+                            className="h-8 text-xs w-full"
+                            onClick={() => updateTask(task.id, { assignedTo: user?.id, status: 'in-progress' })}
+                          >
+                            Asignarme esta tarea
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground bg-muted/50 border-border/50">Asignada a otro desarrollador</Badge>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
       </main>
 

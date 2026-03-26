@@ -15,8 +15,8 @@ interface WeeklyViewProps {
 }
 
 const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-
-const today = new Date().toISOString().split("T")[0];
+const now = new Date();
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
 const isFutureDate = (dateString: string) => {
   return dateString > today;
@@ -27,7 +27,7 @@ const isToday = (dateString: string) => {
 };
 
 export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: WeeklyViewProps) {
-  const { users, projects, workEntries } = useAuth();
+  const { users, projects, workEntries, tasks } = useAuth();
 
   const developers = useMemo(() => {
     return users.filter((u) => u.role === "developer");
@@ -52,22 +52,26 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.getDate();
+    const [year, month, day] = dateString.split("-");
+    return parseInt(day, 10);
   };
 
   const formatMonth = (dateString: string) => {
-    const date = new Date(dateString);
+    const [year, month, day] = dateString.split("-");
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     return date.toLocaleDateString("es-ES", { month: "short" });
   };
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[900px]">
+      <div className="min-w-[1000px]">
         {/* Header con días de la semana */}
-        <div className="grid grid-cols-6 gap-3 mb-4">
+        <div className="grid grid-cols-7 gap-3 mb-4">
           <div className="p-3">
             <span className="text-sm font-medium text-muted-foreground">Desarrollador</span>
+          </div>
+          <div className="p-3">
+            <span className="text-sm font-medium text-muted-foreground">Tareas Asignadas</span>
           </div>
           {weekDates.map((date, index) => (
             <div 
@@ -88,7 +92,7 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
           {filteredDevelopers.map((developer) => (
             <Card key={developer.id} className="border-border/50 overflow-hidden">
               <CardContent className="p-0">
-                <div className="grid grid-cols-6 gap-px bg-border/30">
+                <div className="grid grid-cols-7 gap-px bg-border/30">
                   {/* Info del desarrollador */}
                   <div className="bg-card p-4 flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -100,6 +104,41 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                       <p className="font-medium text-foreground truncate">{developer.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{developer.email}</p>
                     </div>
+                  </div>
+
+                  {/* Celdas de Backlog Asignado */}
+                  <div className="bg-card p-3 min-h-[120px] flex flex-col gap-2 overflow-y-auto max-h-[250px] custom-scrollbar">
+                    {(() => {
+                      const devEntries = workEntries.filter(e => e.userId === developer.id && weekDates.includes(e.date));
+                      const activeProjectIds = Array.from(new Set(devEntries.map(e => e.projectId)));
+                      
+                      const devTasks = tasks.filter(t => 
+                        (t.assignedTo === developer.id || (!t.assignedTo && activeProjectIds.includes(t.projectId))) &&
+                        t.status !== 'completed'
+                      );
+
+                      if (devTasks.length === 0) {
+                        return <div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground/50 text-center">Sin tareas<br/>pendientes</span></div>;
+                      }
+
+                      return devTasks.map(task => {
+                        const project = getProjectById(task.projectId);
+                        if (!project) return null;
+                        return (
+                          <div key={task.id} className={`p-2 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors border-l-3 ${getColorBorderClass(project.color)} shrink-0`}>
+                            <h5 className="font-semibold text-xs leading-tight mb-1 line-clamp-2">{task.title}</h5>
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <Badge variant="secondary" className={`text-[9px] px-1 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent`}>
+                                {project.name}
+                              </Badge>
+                              {task.assignedTo === developer.id && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/30 text-primary">Para ti</Badge>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* Celdas de cada día */}

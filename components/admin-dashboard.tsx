@@ -8,8 +8,9 @@ import { StatsCards } from "./stats-cards";
 import { ProjectLegend } from "./project-legend";
 import { ManageProjectsDialog } from "./manage-projects-dialog";
 import { ManageUsersDialog } from "./manage-users-dialog";
+import { ManageTasksDialog } from "./manage-tasks-dialog";
 import { Button } from "@/components/ui/button";
-import { Settings, Users } from "lucide-react";
+import { Settings, Users, ClipboardList } from "lucide-react";
 
 function getWeekDates(offset: number = 0): string[] {
   const today = new Date();
@@ -21,7 +22,10 @@ function getWeekDates(offset: number = 0): string[] {
   for (let i = 0; i < 5; i++) {
     const date = new Date(monday);
     date.setDate(monday.getDate() + i);
-    dates.push(date.toISOString().split("T")[0]);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    dates.push(`${year}-${month}-${day}`);
   }
   return dates;
 }
@@ -32,6 +36,7 @@ export function AdminDashboard() {
   const [selectedDeveloper, setSelectedDeveloper] = useState("all");
   const [showProjectsDialog, setShowProjectsDialog] = useState(false);
   const [showUsersDialog, setShowUsersDialog] = useState(false);
+  const [showTasksDialog, setShowTasksDialog] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
 
@@ -54,7 +59,11 @@ export function AdminDashboard() {
             selectedDeveloper={selectedDeveloper}
             onDeveloperChange={setSelectedDeveloper}
           />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowTasksDialog(true)}>
+              <ClipboardList className="h-4 w-4 mr-2" />
+              Tareas
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowUsersDialog(true)}>
               <Users className="h-4 w-4 mr-2" />
               Usuarios
@@ -79,6 +88,7 @@ export function AdminDashboard() {
 
       <ManageProjectsDialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog} />
       <ManageUsersDialog open={showUsersDialog} onOpenChange={setShowUsersDialog} />
+      <ManageTasksDialog open={showTasksDialog} onOpenChange={setShowTasksDialog} />
     </div>
   );
 }

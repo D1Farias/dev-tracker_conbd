@@ -38,8 +38,10 @@ export function Filters({
 
   const formatWeekRange = () => {
     if (weekDates.length < 5) return "";
-    const start = new Date(weekDates[0]);
-    const end = new Date(weekDates[4]);
+    const [sYear, sMonth, sDay] = weekDates[0].split("-");
+    const [eYear, eMonth, eDay] = weekDates[4].split("-");
+    const start = new Date(parseInt(sYear, 10), parseInt(sMonth, 10) - 1, parseInt(sDay, 10));
+    const end = new Date(parseInt(eYear, 10), parseInt(eMonth, 10) - 1, parseInt(eDay, 10));
     const startStr = start.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
     const endStr = end.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
     return `${startStr} - ${endStr}`;
