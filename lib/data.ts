@@ -19,6 +19,7 @@ export interface WorkEntry {
   id: string;
   userId: string;
   projectId: string;
+  taskId?: string;
   date: string;
   hours: number;
   description: string;

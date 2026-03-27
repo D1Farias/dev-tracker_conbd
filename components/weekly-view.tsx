@@ -1,17 +1,79 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getColorLightBgClass, getColorTextClass, getColorBorderClass } from "@/lib/data";
-import { Clock } from "lucide-react";
+import { getColorLightBgClass, getColorTextClass, getColorBorderClass, WorkEntry, Task, Project } from "@/lib/data";
+import { Clock, ChevronDown } from "lucide-react";
 
 interface WeeklyViewProps {
   weekDates: string[];
   selectedProject: string;
   selectedDeveloper: string;
+}
+
+// ─── Admin read-only project cell (mirrors dev card, no editing) ──────────────
+function AdminProjectCell({
+  project, entries, tasks, totalHours, inProg, done
+}: {
+  project: Project;
+  entries: WorkEntry[];
+  tasks: Task[];
+  totalHours: number;
+  inProg: number;
+  done: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden`}>
+      <div className="flex items-center justify-between px-2 py-1.5 gap-1">
+        <div className="overflow-hidden max-w-[70px] shrink-0">
+          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent whitespace-nowrap block truncate`}>
+            {project.name}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`text-[10px] font-semibold ${getColorTextClass(project.color)}`}>{totalHours}h</span>
+          <button onClick={() => setOpen(o => !o)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+      </div>
+      {(inProg > 0 || done > 0) && (
+        <div className="flex items-center gap-1.5 px-2 pb-1">
+          {inProg > 0 && <span className="text-[9px] bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 px-1 py-0.5 rounded-sm font-medium">{inProg} progreso</span>}
+          {done  > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium">{done} hecha{done>1?'s':''}</span>}
+        </div>
+      )}
+      {open && (
+        <ul className="border-t border-border/30 divide-y divide-border/20">
+          {entries.map(entry => {
+            const task = entry.taskId ? tasks.find(t => t.id === entry.taskId) : undefined;
+            const statusColor = task?.status === 'completed'
+              ? 'text-green-600 bg-green-500/10 border-green-500/20'
+              : task?.status === 'in-progress'
+              ? 'text-yellow-600 bg-yellow-500/10 border-yellow-500/20'
+              : 'text-muted-foreground bg-muted border-border/50';
+            return (
+              <li key={entry.id} className="flex items-center gap-1.5 px-2 py-1.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-foreground truncate">{task?.title ?? entry.description}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border ${statusColor}`}>
+                      {task?.status === 'completed' ? 'Completado' : task?.status === 'in-progress' ? 'En Progreso' : 'Pendiente'}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">{entry.hours}h</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
@@ -66,12 +128,9 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
     <div className="overflow-x-auto">
       <div className="min-w-[1000px]">
         {/* Header con días de la semana */}
-        <div className="grid grid-cols-7 gap-3 mb-4">
+        <div className="grid grid-cols-6 gap-3 mb-4">
           <div className="p-3">
             <span className="text-sm font-medium text-muted-foreground">Desarrollador</span>
-          </div>
-          <div className="p-3">
-            <span className="text-sm font-medium text-muted-foreground">Tareas Asignadas</span>
           </div>
           {weekDates.map((date, index) => (
             <div 
@@ -92,7 +151,7 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
           {filteredDevelopers.map((developer) => (
             <Card key={developer.id} className="border-border/50 overflow-hidden">
               <CardContent className="p-0">
-                <div className="grid grid-cols-7 gap-px bg-border/30">
+                <div className="grid grid-cols-6 gap-px bg-border/30">
                   {/* Info del desarrollador */}
                   <div className="bg-card p-4 flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -106,103 +165,57 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                     </div>
                   </div>
 
-                  {/* Celdas de Backlog Asignado */}
-                  <div className="bg-card p-3 min-h-[120px] flex flex-col gap-2 overflow-y-auto max-h-[250px] custom-scrollbar">
-                    {(() => {
-                      const devEntries = workEntries.filter(e => e.userId === developer.id && weekDates.includes(e.date));
-                      const activeProjectIds = Array.from(new Set(devEntries.map(e => e.projectId)));
-                      
-                      const devTasks = tasks.filter(t => 
-                        t.assignedTo === developer.id &&
-                        t.status !== 'completed'
-                      );
-
-                      if (devTasks.length === 0) {
-                        return <div className="flex-1 flex items-center justify-center"><span className="text-xs text-muted-foreground/50 text-center">Sin tareas<br/>asignadas</span></div>;
-                      }
-
-                      return devTasks.map(task => {
-                        const project = getProjectById(task.projectId);
-                        if (!project) return null;
-                        return (
-                          <div key={task.id} className={`p-2 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors border-l-3 ${getColorBorderClass(project.color)} shrink-0`}>
-                            <h5 className="font-semibold text-xs leading-tight mb-1 line-clamp-2">{task.title}</h5>
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <Badge variant="secondary" className={`text-[9px] px-1 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent`}>
-                                {project.name}
-                              </Badge>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-
-                  {/* Celdas de cada día */}
                   {weekDates.map((date) => {
                     const entries = getEntriesForDeveloperAndDate(developer.id, date);
                     const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
                     const isFuture = isFutureDate(date);
                     const isTodayDate = isToday(date);
 
+                    // Group by project
+                    const projectGroups = entries.reduce<Record<string, typeof entries>>((acc, e) => {
+                      (acc[e.projectId] = acc[e.projectId] || []).push(e);
+                      return acc;
+                    }, {});
+
                     return (
                       <div
                         key={date}
-                        className={`bg-card p-3 min-h-[120px] flex flex-col ${isFuture ? "bg-muted/30" : ""} ${isTodayDate ? "ring-2 ring-primary ring-inset" : ""}`}
+                        className={`bg-card p-2 min-h-[120px] flex flex-col gap-2 ${isFuture ? "bg-muted/30" : ""} ${isTodayDate ? "ring-2 ring-primary ring-inset" : ""}`}
                       >
                         {isFuture ? (
                           <div className="flex-1 flex items-center justify-center">
                             <span className="text-xs text-muted-foreground/50">Pendiente</span>
                           </div>
-                        ) : entries.length > 0 ? (
+                        ) : Object.keys(projectGroups).length > 0 ? (
                           <>
-                            <div className="flex-1 space-y-2">
-                              {entries.map((entry) => {
-                                const project = getProjectById(entry.projectId);
+                            <div className="flex-1 space-y-1.5">
+                              {Object.entries(projectGroups).map(([projectId, projEntries]) => {
+                                const project = getProjectById(projectId);
                                 if (!project) return null;
 
-                                const pTasks = tasks.filter(t => t.projectId === project.id);
-                                const availableCount = pTasks.filter(t => !t.assignedTo && t.status !== 'completed').length;
-                                const inProgressCount = pTasks.filter(t => t.assignedTo === developer.id && t.status === 'in-progress').length;
-                                const completedCount = pTasks.filter(t => t.assignedTo === developer.id && t.status === 'completed').length;
+                                const phours = projEntries.reduce((s, e) => s + e.hours, 0);
+                                const projTasks = projEntries.map(e =>
+                                  e.taskId ? tasks.find(t => t.id === e.taskId) : undefined
+                                );
+                                const inProg = projTasks.filter(t => t?.status === 'in-progress').length;
+                                const done   = projTasks.filter(t => t?.status === 'completed').length;
 
                                 return (
-                                  <div
-                                    key={entry.id}
-                                    className={`flex flex-col p-2 rounded-lg border-l-3 ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)}`}
-                                  >
-                                    <div className="flex items-center justify-between gap-1 mb-1.5">
-                                      <Badge
-                                        variant="secondary"
-                                        className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent`}
-                                      >
-                                        {project.name}
-                                      </Badge>
-                                      <span className={`text-[10px] font-medium ${getColorTextClass(project.color)}`}>
-                                        {entry.hours}h
-                                      </span>
-                                    </div>
-                                    
-                                    {(availableCount > 0 || inProgressCount > 0 || completedCount > 0) && (
-                                      <div className="flex flex-wrap gap-1 mb-1.5">
-                                        {availableCount > 0 && <span className="text-[9px] bg-muted/80 text-muted-foreground px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas disponibles">{availableCount} disp</span>}
-                                        {inProgressCount > 0 && <span className="text-[9px] bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas en progreso">{inProgressCount} prog</span>}
-                                        {completedCount > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium leading-none" title="Tareas completadas">{completedCount} comp</span>}
-                                      </div>
-                                    )}
-
-                                    <p className="text-[11px] text-foreground/80 line-clamp-2 leading-tight">
-                                      {entry.description}
-                                    </p>
-                                  </div>
+                                  <AdminProjectCell
+                                    key={projectId}
+                                    project={project}
+                                    entries={projEntries}
+                                    tasks={tasks}
+                                    totalHours={phours}
+                                    inProg={inProg}
+                                    done={done}
+                                  />
                                 );
                               })}
                             </div>
-                            <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border/50">
+                            <div className="flex items-center justify-end gap-1 pt-1 border-t border-border/30">
                               <Clock className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs font-medium text-muted-foreground">
-                                {totalHours}h total
-                              </span>
+                              <span className="text-xs font-medium text-muted-foreground">{totalHours}h</span>
                             </div>
                           </>
                         ) : (
@@ -213,6 +226,7 @@ export function WeeklyView({ weekDates, selectedProject, selectedDeveloper }: We
                       </div>
                     );
                   })}
+
                 </div>
               </CardContent>
             </Card>

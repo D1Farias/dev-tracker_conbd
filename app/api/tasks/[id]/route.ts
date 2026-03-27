@@ -37,7 +37,12 @@ export async function DELETE(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const db = await connectDB();
-    await db.query("DELETE FROM tasks WHERE id=?", [id]);
+    
+    // Desvincular registros de esa tarea
+    await db.query("UPDATE work_entries SET task_id = NULL WHERE task_id = ?", [id]);
+    // Eliminar la tarea
+    await db.query("DELETE FROM tasks WHERE id = ?", [id]);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting task:", error);

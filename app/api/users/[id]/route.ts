@@ -40,7 +40,14 @@ export async function DELETE(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const db = await connectDB();
+    
+    // Eliminar registros del usuario
+    await db.query("DELETE FROM work_entries WHERE userId = ?", [id]);
+    // Desasignar tareas
+    await db.query("UPDATE tasks SET assignedTo = NULL WHERE assignedTo = ?", [id]);
+    // Eliminar usuario
     await db.query("DELETE FROM users WHERE id = ?", [id]);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting user:", error);

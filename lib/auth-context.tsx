@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: String(e.id),
               userId: String(e.userId),
               projectId: String(e.projectId),
+              taskId: e.task_id ? String(e.task_id) : undefined,
               date: e.date && typeof e.date === 'string' && e.date.includes('T') ? e.date.split('T')[0] : e.date
             }));
             setWorkEntries(formattedEntries);
@@ -83,7 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           const tasksData = await tasksRes.json();
           if (Array.isArray(tasksData)) {
-            setTasks(tasksData.map((t: any) => ({ ...t, id: String(t.id), projectId: String(t.projectId) })));
+            setTasks(tasksData.map((t: any) => ({
+              ...t,
+              id: String(t.id),
+              projectId: String(t.projectId),
+              assignedTo: t.assignedTo ? String(t.assignedTo) : undefined
+            })));
           }
 
           setError(null);
@@ -264,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         setUsers(prev => prev.filter(u => u.id !== id));
         setWorkEntries(prev => prev.filter(e => e.userId !== id));
+        setTasks(prev => prev.map(t => t.assignedTo === id ? { ...t, assignedTo: undefined } : t));
         toast.success('Usuario eliminado');
       } else {
         toast.error('Error al eliminar el usuario');
@@ -323,6 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== id));
+        setWorkEntries(prev => prev.map(e => e.taskId === id ? { ...e, taskId: undefined } : e));
         toast.success('Tarea eliminada');
       } else {
         toast.error('Error al eliminar la tarea');

@@ -8,11 +8,11 @@ export async function GET(req: Request, context: any) {
     const { id } = await context.params;
     const db = await connectDB();
     const [rows]: any = await db.query("SELECT * FROM work_entries WHERE id = ?", [id]);
-    
+
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: "Work entry not found" }, { status: 404 });
     }
-    
+
     return NextResponse.json(rows[0]);
   } catch (error) {
     console.error("Error fetching work entry:", error);
@@ -24,16 +24,17 @@ export async function PUT(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const data = await req.json();
-    const { userId, projectId, date, hours, description } = data;
+    const { userId, projectId, taskId, date, hours, description } = data;
 
     const fieldsToUpdate: string[] = [];
     const values: any[] = [];
 
-    if (userId) { fieldsToUpdate.push("userId = ?"); values.push(userId); }
-    if (projectId) { fieldsToUpdate.push("projectId = ?"); values.push(projectId); }
-    if (date) { fieldsToUpdate.push("date = ?"); values.push(date); }
-    if (hours !== undefined) { fieldsToUpdate.push("hours = ?"); values.push(hours); }
-    if (description !== undefined) { fieldsToUpdate.push("description = ?"); values.push(description); }
+    if (userId)                  { fieldsToUpdate.push("userId = ?");      values.push(userId); }
+    if (projectId)               { fieldsToUpdate.push("projectId = ?");   values.push(projectId); }
+    if (taskId !== undefined)    { fieldsToUpdate.push("task_id = ?");     values.push(taskId ?? null); }
+    if (date)                    { fieldsToUpdate.push("date = ?");        values.push(date); }
+    if (hours !== undefined)     { fieldsToUpdate.push("hours = ?");       values.push(hours); }
+    if (description !== undefined){ fieldsToUpdate.push("description = ?"); values.push(description); }
 
     if (fieldsToUpdate.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
