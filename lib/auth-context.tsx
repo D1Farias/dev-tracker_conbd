@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
   User, Project, WorkEntry, Task
@@ -16,7 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => boolean;
   logout: () => void;
   addWorkEntry: (entry: Omit<WorkEntry, 'id'>) => void;
-  updateWorkEntry: (id: string, entry: Partial<WorkEntry>) => void;
+  updateWorkEntry: (id: string, entry: Partial<WorkEntry>, silent?: boolean) => void;
   deleteWorkEntry: (id: string) => void;
   addProject: (project: Omit<Project, 'id'>) => void;
   updateProject: (id: string, project: Partial<Project>) => void;
@@ -27,6 +27,7 @@ interface AuthContextType {
   addTask: (task: Omit<Task, 'id'>) => void;
   updateTask: (id: string, task: Partial<Task>) => void;
   deleteTask: (id: string) => void;
+  loadData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Function to load data from the API
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('devtracker_user');
       if (savedUser) setUser(JSON.parse(savedUser));
@@ -99,18 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
       }
     }
-  };
-
-  // Load data on component mount
-  useEffect(() => {
-    loadData();
   }, []);
 
-  // Las funciones de actualizar, borrar e insertar de momento solo modifican el estado local
-  // sin guardar a localStorage, para que funcione de "solo GET" respecto a la carga de datos.
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
 
-  const login = (email: string, password: string): boolean => {
+  const login = useCallback((email: string, password: string): boolean => {
     const foundUser = users.find(u => u.email === email && u.password === password);
     if (foundUser) {
       setUser(foundUser);
@@ -118,179 +115,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
     return false;
-  };
+  }, [users]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('devtracker_user');
-  };
+  }, []);
 
-  const addWorkEntry = async (entry: Omit<WorkEntry, 'id'>) => {
-    try {
-      const res = await fetch('/api/work-entries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setWorkEntries(prev => [...prev, data.workEntry]);
-        toast.success('Registro añadido correctamente');
-      } else {
-        toast.error('Error al añadir el registro');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al guardar el registro');
-    }
-  };
+  // ─── Task CRUD (Defined first so they can be used by other CRUD) ───────────
 
-  const updateWorkEntry = async (id: string, entry: Partial<WorkEntry>) => {
-    try {
-      const res = await fetch(`/api/work-entries/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry)
-      });
-      if (res.ok) {
-        setWorkEntries(prev => prev.map(e => e.id === id ? { ...e, ...entry } : e));
-        toast.success('Registro actualizado');
-      } else {
-        toast.error('Error al actualizar el registro');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al actualizar el registro');
-    }
-  };
-
-  const deleteWorkEntry = async (id: string) => {
-    try {
-      const entryToDelete = workEntries.find(e => e.id === id);
-      const res = await fetch(`/api/work-entries/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setWorkEntries(prev => prev.filter(e => e.id !== id));
-        
-        // If this work entry was linked to a task, unassign the task in the database
-        if (entryToDelete?.taskId) {
-          await updateTask(entryToDelete.taskId, { assignedTo: undefined, status: 'pending' });
-        }
-        
-        toast.success('Registro eliminado');
-        loadData(); // Re-sync entire state
-      } else {
-        toast.error('Error al eliminar el registro');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al eliminar el registro');
-    }
-  };
-
-  const addProject = async (project: Omit<Project, 'id'>) => {
-    try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(project)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(prev => [...prev, data.project]);
-        toast.success(`Proyecto "${project.name}" creado`);
-      } else {
-        toast.error('Error al crear el proyecto');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al crear el proyecto');
-    }
-  };
-
-  const updateProject = async (id: string, project: Partial<Project>) => {
-    try {
-      const res = await fetch(`/api/projects/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(project)
-      });
-      if (res.ok) {
-        setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
-        toast.success('Proyecto actualizado');
-      } else {
-        toast.error('Error al actualizar el proyecto');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al actualizar el proyecto');
-    }
-  };
-
-  const deleteProject = async (id: string) => {
-    try {
-      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setProjects(prev => prev.filter(p => p.id !== id));
-        setWorkEntries(prev => prev.filter(e => e.projectId !== id));
-        setTasks(prev => prev.filter(t => t.projectId !== id));
-        toast.success('Proyecto eliminado');
-      } else {
-        toast.error('Error al eliminar el proyecto');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al eliminar el proyecto');
-    }
-  };
-
-  const addUser = async (newUser: Omit<User, 'id'>) => {
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(prev => [...prev, data.user]);
-        toast.success(`Usuario "${newUser.name}" creado`);
-      } else {
-        toast.error('Error al crear el usuario');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al crear el usuario');
-    }
-  };
-
-  const updateUser = async (id: string, userData: Partial<User>) => {
-    try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
-      });
-      if (res.ok) {
-        setUsers(prev => prev.map(u => u.id === id ? { ...u, ...userData } : u));
-        toast.success('Usuario actualizado');
-      } else {
-        toast.error('Error al actualizar el usuario');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al actualizar el usuario');
-    }
-  };
-
-  const deleteUser = async (id: string) => {
-    try {
-      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setUsers(prev => prev.filter(u => u.id !== id));
-        setWorkEntries(prev => prev.filter(e => e.userId !== id));
-        setTasks(prev => prev.map(t => t.assignedTo === id ? { ...t, assignedTo: undefined } : t));
-        toast.success('Usuario eliminado');
-      } else {
-        toast.error('Error al eliminar el usuario');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al eliminar el usuario');
-    }
-  };
-
-  const addTask = async (task: Omit<Task, 'id'>) => {
+  const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -308,9 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       toast.error('Error de conexión al crear la tarea');
     }
-  };
+  }, [loadData]);
 
-  const updateTask = async (id: string, taskData: Partial<Task>) => {
+  const updateTask = useCallback(async (id: string, taskData: Partial<Task>) => {
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PUT',
@@ -335,16 +169,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       toast.error('Error de conexión al actualizar la tarea');
     }
-  };
+  }, [loadData]);
 
-  const deleteTask = async (id: string) => {
+  const deleteTask = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== id));
         setWorkEntries(prev => prev.filter(e => e.taskId !== id));
         toast.success('Tarea eliminada');
-        // Refresh data from the server to ensure all panels are in sync
         loadData();
       } else {
         toast.error('Error al eliminar la tarea');
@@ -352,7 +185,179 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       toast.error('Error de conexión al eliminar la tarea');
     }
-  };
+  }, [loadData]);
+
+  // ─── Work Entry CRUD ────────────────────────────────────────────────────────
+
+  const addWorkEntry = useCallback(async (entry: Omit<WorkEntry, 'id'>) => {
+    try {
+      const res = await fetch('/api/work-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWorkEntries(prev => [...prev, data.workEntry]);
+        toast.success('Registro añadido correctamente');
+        loadData(); // Re-fetch to ensure everything is normalized and stats are updated
+      } else {
+        toast.error('Error al añadir el registro');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al guardar el registro');
+    }
+  }, [loadData]);
+
+  const updateWorkEntry = useCallback(async (id: string, entry: Partial<WorkEntry>, silent = false) => {
+    try {
+      const res = await fetch(`/api/work-entries/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      });
+      if (res.ok) {
+        setWorkEntries(prev => prev.map(e => e.id === id ? { ...e, ...entry } : e));
+        if (!silent) toast.success('Registro actualizado');
+        loadData(); // Re-fetch to normalize
+      } else {
+        toast.error('Error al actualizar el registro');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al actualizar el registro');
+    }
+  }, [loadData]);
+
+  const deleteWorkEntry = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/work-entries/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setWorkEntries(prev => prev.filter(e => e.id !== id));
+        toast.success('Registro eliminado');
+        loadData(); // Re-sync entire state (server handles task unassignment)
+      } else {
+        toast.error('Error al eliminar el registro');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al eliminar el registro');
+    }
+  }, [loadData]);
+
+  // ─── Project CRUD ───────────────────────────────────────────────────────────
+
+  const addProject = useCallback(async (project: Omit<Project, 'id'>) => {
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(prev => [...prev, data.project]);
+        toast.success(`Proyecto "${project.name}" creado`);
+        loadData(); // Re-fetch
+      } else {
+        toast.error('Error al crear el proyecto');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al crear el proyecto');
+    }
+  }, [loadData]);
+
+  const updateProject = useCallback(async (id: string, project: Partial<Project>) => {
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project)
+      });
+      if (res.ok) {
+        setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
+        toast.success('Proyecto actualizado');
+        loadData(); // Re-fetch
+      } else {
+        toast.error('Error al actualizar el proyecto');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al actualizar el proyecto');
+    }
+  }, [loadData]);
+
+  const deleteProject = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setProjects(prev => prev.filter(p => p.id !== id));
+        setWorkEntries(prev => prev.filter(e => e.projectId !== id));
+        setTasks(prev => prev.filter(t => t.projectId !== id));
+        toast.success('Proyecto eliminado');
+        loadData(); // Re-fetch
+      } else {
+        toast.error('Error al eliminar el proyecto');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al eliminar el proyecto');
+    }
+  }, [loadData]);
+
+  // ─── User CRUD ─────────────────────────────────────────────────────────────
+
+  const addUser = useCallback(async (newUser: Omit<User, 'id'>) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(prev => [...prev, data.user]);
+        toast.success(`Usuario "${newUser.name}" creado`);
+        loadData(); // Re-fetch
+      } else {
+        toast.error('Error al crear el usuario');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al crear el usuario');
+    }
+  }, [loadData]);
+
+  const updateUser = useCallback(async (id: string, userData: Partial<User>) => {
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, ...userData } : u));
+        toast.success('Usuario actualizado');
+        loadData(); // Re-fetch
+      } else {
+        toast.error('Error al actualizar el usuario');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al actualizar el usuario');
+    }
+  }, [loadData]);
+
+  const deleteUser = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setUsers(prev => prev.filter(u => u.id !== id));
+        setWorkEntries(prev => prev.filter(e => e.userId !== id));
+        setTasks(prev => prev.map(t => t.assignedTo === id ? { ...t, assignedTo: undefined } : t));
+        toast.success('Usuario eliminado');
+        loadData(); // Re-sync entire state
+      } else {
+        toast.error('Error al eliminar el usuario');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al eliminar el usuario');
+    }
+  }, [loadData]);
 
   if (!isLoaded) {
     return (
@@ -384,6 +389,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       deleteTask,
+      loadData,
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { WorkEntry, Task, getColorBgClass, getColorLightBgClass, getColorTextClass, getColorBorderClass } from "@/lib/data";
 import { Header } from "./header";
@@ -441,7 +442,8 @@ export function DeveloperDashboard() {
                   // Move all entries of that project card to new date
                   workEntries
                     .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
-                    .forEach(en => updateWorkEntry(en.id, { date }));
+                    .forEach(en => updateWorkEntry(en.id, { date }, true));
+                  toast.success('Proyecto movido');
                   setDragging(null);
                 }}
               >

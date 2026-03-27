@@ -57,7 +57,36 @@ export async function DELETE(req: Request, context: any) {
   try {
     const { id } = await context.params;
     const db = await connectDB();
-    await db.query("DELETE FROM work_entries WHERE id = ?", [id]);
+    
+    // 1. Obtener el task_id antes de borrar el registro
+    const [entries]: any = await db.query("SELECT task_id, userId FROM work_entries WHERE id = ?", [id]);
+    
+    if (entries.length > 0) {
+      const { task_id, userId } = entries[0];
+      
+      // 2. Borrar el registro de trabajo
+      await db.query("DELETE FROM work_entries WHERE id = ?", [id]);
+      
+      // 3. Si estaba vinculado a una tarea, verificar si quedan más registros para esa tarea
+      if (task_id) {
+        const [remaining]: any = await db.query(
+          "SELECT COUNT(*) as count FROM work_entries WHERE task_id = ? AND userId = ?", 
+          [task_id, userId]
+        );
+        
+        // 4. Si no quedan registros, liberar la tarea en el backlog
+        if (remaining[0].count === 0) {
+          await db.query(
+            "UPDATE tasks SET assignedTo = NULL, status = 'pending' WHERE id = ?", 
+            [task_id]
+          );
+        }
+      }
+    } else {
+      // Si el registro no existe, igualmente intentamos borrar por si acaso
+      await db.query("DELETE FROM work_entries WHERE id = ?", [id]);
+    }
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting work entry:", error);

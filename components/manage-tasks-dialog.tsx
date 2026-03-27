@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +31,16 @@ interface ManageTasksDialogProps {
 }
 
 export function ManageTasksDialog({ open, onOpenChange }: ManageTasksDialogProps) {
-  const { tasks, projects, users, addTask, updateTask, deleteTask } = useAuth();
+  const { tasks, projects, users, addTask, updateTask, deleteTask, loadData } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  
+  // Refresh data whenever the dialog opens to ensure the backlog is in sync with recent dev changes
+  useEffect(() => {
+    if (open) {
+      loadData();
+    }
+  }, [open, loadData]);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   
@@ -51,7 +59,7 @@ export function ManageTasksDialog({ open, onOpenChange }: ManageTasksDialogProps
         description: formData.description,
         projectId: selectedProjectId,
         status: formData.status,
-        assignedTo: formData.assignedTo || undefined
+        assignedTo: formData.assignedTo || null as any
       });
       setFormData(initialFormState);
       setIsAdding(false);
@@ -78,7 +86,7 @@ export function ManageTasksDialog({ open, onOpenChange }: ManageTasksDialogProps
         title: formData.title,
         description: formData.description,
         status: formData.status,
-        assignedTo: formData.assignedTo || undefined
+        assignedTo: formData.assignedTo || null as any
       });
       setEditingId(null);
       setFormData(initialFormState);
