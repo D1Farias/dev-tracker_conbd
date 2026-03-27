@@ -29,11 +29,15 @@ function AdminProjectCell({
   return (
     <div className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden`}>
       <div className="flex items-center justify-between px-2 py-1.5 gap-1">
-        <div className="overflow-hidden max-w-[70px] shrink-0">
+        {/* Clickable title toggle */}
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="overflow-hidden max-w-[70px] shrink-0 text-left hover:opacity-80 transition-opacity"
+        >
           <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent whitespace-nowrap block truncate`}>
             {project.name}
           </Badge>
-        </div>
+        </button>
         <div className="flex items-center gap-1 shrink-0">
           <span className={`text-[10px] font-semibold ${getColorTextClass(project.color)}`}>{totalHours}h</span>
           <button onClick={() => setOpen(o => !o)} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -48,23 +52,23 @@ function AdminProjectCell({
         </div>
       )}
       {open && (
-        <ul className="border-t border-border/30 divide-y divide-border/20">
+        <ul className="border-t border-border/60 divide-y divide-slate-400 dark:divide-slate-500">
           {entries.map(entry => {
             const task = entry.taskId ? tasks.find(t => t.id === entry.taskId) : undefined;
-            const statusColor = task?.status === 'completed'
-              ? 'text-green-600 bg-green-500/10 border-green-500/20'
-              : task?.status === 'in-progress'
-              ? 'text-yellow-600 bg-yellow-500/10 border-yellow-500/20'
-              : 'text-muted-foreground bg-muted border-border/50';
+            const statusColor =
+              task?.status === "completed" ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-400"
+              : task?.status === "in-progress" ? "text-amber-700 bg-amber-500/20 border-amber-500/30 dark:text-amber-400"
+              : "text-slate-600 bg-slate-500/10 border-slate-500/20";
+
             return (
-              <li key={entry.id} className="flex items-center gap-1.5 px-2 py-1.5">
+              <li key={entry.id} className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors ${task?.status === 'completed' ? 'bg-green-500/5' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-medium text-foreground truncate">{task?.title ?? entry.description}</p>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border ${statusColor}`}>
+                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
                       {task?.status === 'completed' ? 'Completado' : task?.status === 'in-progress' ? 'En Progreso' : 'Pendiente'}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">{entry.hours}h</span>
+                    <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
                   </div>
                 </div>
               </li>

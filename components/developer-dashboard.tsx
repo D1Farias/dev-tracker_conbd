@@ -117,6 +117,8 @@ function ProjectDayCard({
   onDragStart,
   onDragEnd,
   isDragging,
+  isOpen,
+  onToggleOpen,
 }: {
   projectId: string;
   entries: WorkEntry[];
@@ -125,9 +127,10 @@ function ProjectDayCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   isDragging: boolean;
+  isOpen: boolean;
+  onToggleOpen: () => void;
 }) {
   const { projects, tasks } = useAuth();
-  const [taskListOpen, setTaskListOpen] = useState(false);
   const [openPopoverEntryId, setOpenPopoverEntryId] = useState<string | null>(null);
 
   const project = projects.find(p => p.id === projectId);
@@ -157,15 +160,18 @@ function ProjectDayCard({
         className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden cursor-grab active:cursor-grabbing transition-opacity ${isDragging ? 'opacity-40' : ''} marquee-hover`}
       >
       <div className="flex items-center justify-between px-2.5 py-2 gap-1">
-        {/* Left: project name with marquee */}
-        <div className="overflow-hidden max-w-[90px] shrink-0">
+        {/* Left: project name with marquee (Now clickable) */}
+        <button
+          onClick={() => onToggleOpen()}
+          className="overflow-hidden max-w-[90px] shrink-0 text-left hover:opacity-80 transition-opacity"
+        >
           <Badge
             variant="secondary"
             className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent whitespace-nowrap block marquee-text`}
           >
             {project.name}
           </Badge>
-        </div>
+        </button>
 
         {/* Right: hours + add + task toggle */}
         <div className="flex items-center gap-1 shrink-0">
@@ -176,17 +182,17 @@ function ProjectDayCard({
             <button
               onClick={e => { e.stopPropagation(); onAddTask(); }}
               title="Añadir tarea"
-              className={`h-5 w-5 flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${getColorTextClass(project.color)}`}
+              className={`h-5 w-5 flex items-center justify-center rounded border border-current hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${getColorTextClass(project.color)} bg-white/40 dark:bg-black/20 shadow-sm`}
             >
               <Plus className="h-3 w-3" />
             </button>
           )}
           {!isFuture && (
             <button
-              onClick={() => setTaskListOpen(o => !o)}
+              onClick={() => onToggleOpen()}
               className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ChevronDown className={`h-3 w-3 transition-transform ${taskListOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
             </button>
           )}
         </div>
@@ -201,7 +207,7 @@ function ProjectDayCard({
             const done   = taskList.filter(t => t?.status === 'completed').length;
             return (
               <>
-                {inProg > 0 && <span className="text-[9px] bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 px-1 py-0.5 rounded-sm font-medium">{inProg} en progreso</span>}
+                {inProg > 0 && <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1 py-0.5 rounded-sm font-medium">{inProg} en progreso</span>}
                 {done  > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium">{done} completada{done>1?'s':''}</span>}
               </>
             );
@@ -210,28 +216,28 @@ function ProjectDayCard({
       )}
 
       {/* Task list dropdown */}
-      {taskListOpen && (
-        <ul className="border-t border-border/30 divide-y divide-border/20">
+      {isOpen && (
+        <ul className="border-t border-border/60 divide-y divide-slate-400 dark:divide-slate-500">
           {entries.map(entry => {
             const task = getTask(entry);
             const statusColor =
-              task?.status === "completed" ? "text-green-600 bg-green-500/10 border-green-500/20"
-              : task?.status === "in-progress" ? "text-yellow-600 bg-yellow-500/10 border-yellow-500/20"
-              : "text-muted-foreground bg-muted border-border/50";
+              task?.status === "completed" ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-400"
+              : task?.status === "in-progress" ? "text-amber-700 bg-amber-500/20 border-amber-500/30 dark:text-amber-400"
+              : "text-slate-600 bg-slate-500/10 border-slate-500/20";
 
             return (
-              <li key={entry.id} className="flex items-center justify-between gap-1 px-2.5 py-1.5">
+              <li key={entry.id} className={`flex items-center justify-between gap-1 px-2.5 py-1.5 transition-colors ${task?.status === 'completed' ? 'bg-green-500/5' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-medium text-foreground truncate">
                     {task?.title ?? entry.description}
                   </p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border ${statusColor}`}>
+                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
                       {task?.status === "completed" ? "Completado"
                         : task?.status === "in-progress" ? "En Progreso"
                         : "Pendiente"}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">{entry.hours}h</span>
+                    <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
                   </div>
                 </div>
 
@@ -273,6 +279,14 @@ export function DeveloperDashboard() {
   // Drag state: tracks which project card on which date is being dragged
   const [dragging, setDragging] = useState<{ projectId: string; date: string } | null>(null);
   const [dropTargetDate, setDropTargetDate] = useState<string | null>(null);
+
+  // Map to store expanded state per date and project: 'yyyy-mm-dd:projectId'
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+  const toggleCard = (date: string, projectId: string) => {
+    const key = `${date}:${projectId}`;
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
 
@@ -411,6 +425,19 @@ export function DeveloperDashboard() {
                   e.preventDefault();
                   setDropTargetDate(null);
                   if (!dragging || isFuture || dragging.date === date) return;
+
+                  // Preserve expanded state if the card was open
+                  const oldKey = `${dragging.date}:${dragging.projectId}`;
+                  const newKey = `${date}:${dragging.projectId}`;
+                  if (expandedCards[oldKey]) {
+                    setExpandedCards(prev => {
+                      const next = { ...prev };
+                      delete next[oldKey];
+                      next[newKey] = true;
+                      return next;
+                    });
+                  }
+
                   // Move all entries of that project card to new date
                   workEntries
                     .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
@@ -448,6 +475,8 @@ export function DeveloperDashboard() {
                       onDragStart={() => setDragging({ projectId, date })}
                       onDragEnd={() => { setDragging(null); setDropTargetDate(null); }}
                       isDragging={dragging?.projectId === projectId && dragging?.date === date}
+                      isOpen={!!expandedCards[`${date}:${projectId}`]}
+                      onToggleOpen={() => toggleCard(date, projectId)}
                     />
                   ))}
 

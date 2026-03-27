@@ -40,67 +40,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Cargar datos desde la base de datos MySQL (vía API Routes) y sesión local
-  useEffect(() => {
-    async function loadData() {
-      if (typeof window !== 'undefined') {
-        const savedUser = localStorage.getItem('devtracker_user');
-        if (savedUser) setUser(JSON.parse(savedUser));
+  // Function to load data from the API
+  const loadData = async () => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('devtracker_user');
+      if (savedUser) setUser(JSON.parse(savedUser));
 
-        try {
-          const [usersRes, projectsRes, entriesRes, tasksRes] = await Promise.all([
-            fetch('/api/users'),
-            fetch('/api/projects'),
-            fetch('/api/work-entries'),
-            fetch('/api/tasks')
-          ]);
+      try {
+        const [usersRes, projectsRes, entriesRes, tasksRes] = await Promise.all([
+          fetch('/api/users'),
+          fetch('/api/projects'),
+          fetch('/api/work-entries'),
+          fetch('/api/tasks')
+        ]);
 
-          if (!usersRes.ok || !projectsRes.ok || !entriesRes.ok || !tasksRes.ok) {
-            throw new Error("No se pudo obtener información de la base de datos.");
-          }
-
-          const usersData = await usersRes.json();
-          if (Array.isArray(usersData)) {
-            setUsers(usersData.map((u: any) => ({ ...u, id: String(u.id) })));
-          }
-
-          const projectsData = await projectsRes.json();
-          if (Array.isArray(projectsData)) {
-            setProjects(projectsData.map((p: any) => ({ ...p, id: String(p.id) })));
-          }
-
-          const entriesData = await entriesRes.json();
-          if (Array.isArray(entriesData)) {
-            const formattedEntries = entriesData.map((e: any) => ({
-              ...e,
-              id: String(e.id),
-              userId: String(e.userId),
-              projectId: String(e.projectId),
-              taskId: e.task_id ? String(e.task_id) : undefined,
-              date: e.date && typeof e.date === 'string' && e.date.includes('T') ? e.date.split('T')[0] : e.date
-            }));
-            setWorkEntries(formattedEntries);
-          }
-
-          const tasksData = await tasksRes.json();
-          if (Array.isArray(tasksData)) {
-            setTasks(tasksData.map((t: any) => ({
-              ...t,
-              id: String(t.id),
-              projectId: String(t.projectId),
-              assignedTo: t.assignedTo ? String(t.assignedTo) : undefined
-            })));
-          }
-
-          setError(null);
-        } catch (err: any) {
-          console.error("Error al obtener datos de MySQL:", err);
-          setError(err.message || "Error al conectar con la base de datos MySQL.");
-        } finally {
-          setIsLoaded(true);
+        if (!usersRes.ok || !projectsRes.ok || !entriesRes.ok || !tasksRes.ok) {
+          throw new Error('No se pudo obtener información de la base de datos.');
         }
+
+        const usersData = await usersRes.json();
+        if (Array.isArray(usersData)) {
+          setUsers(usersData.map((u: any) => ({ ...u, id: String(u.id) })));
+        }
+
+        const projectsData = await projectsRes.json();
+        if (Array.isArray(projectsData)) {
+          setProjects(projectsData.map((p: any) => ({ ...p, id: String(p.id) })));
+        }
+
+        const entriesData = await entriesRes.json();
+        if (Array.isArray(entriesData)) {
+          const formattedEntries = entriesData.map((e: any) => ({
+            ...e,
+            id: String(e.id),
+            userId: String(e.userId),
+            projectId: String(e.projectId),
+            taskId: e.task_id ? String(e.task_id) : undefined,
+            date: e.date && typeof e.date === 'string' && e.date.includes('T') ? e.date.split('T')[0] : e.date
+          }));
+          setWorkEntries(formattedEntries);
+        }
+
+        const tasksData = await tasksRes.json();
+        if (Array.isArray(tasksData)) {
+          setTasks(tasksData.map((t: any) => ({
+            ...t,
+            id: String(t.id),
+            projectId: String(t.projectId),
+            assignedTo: t.assignedTo ? String(t.assignedTo) : undefined
+          })));
+        }
+
+        setError(null);
+      } catch (err: any) {
+        console.error('Error al obtener datos de MySQL:', err);
+        setError(err.message || 'Error al conectar con la base de datos MySQL.');
+      } finally {
+        setIsLoaded(true);
       }
     }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -162,10 +164,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const deleteWorkEntry = async (id: string) => {
     try {
+      const entryToDelete = workEntries.find(e => e.id === id);
       const res = await fetch(`/api/work-entries/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setWorkEntries(prev => prev.filter(e => e.id !== id));
+        
+        // If this work entry was linked to a task, unassign the task in the database
+        if (entryToDelete?.taskId) {
+          await updateTask(entryToDelete.taskId, { assignedTo: undefined, status: 'pending' });
+        }
+        
         toast.success('Registro eliminado');
+        loadData(); // Re-sync entire state
       } else {
         toast.error('Error al eliminar el registro');
       }
@@ -291,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         setTasks(prev => [...prev, data.task]);
         toast.success(`Tarea "${task.title}" creada`);
+        loadData(); // Sync
       } else {
         toast.error('Error al crear la tarea');
       }
@@ -317,6 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           toast.success('Tarea actualizada');
         }
+        loadData(); // Sync
       } else {
         toast.error('Error al actualizar la tarea');
       }
@@ -330,8 +342,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== id));
-        setWorkEntries(prev => prev.map(e => e.taskId === id ? { ...e, taskId: undefined } : e));
+        setWorkEntries(prev => prev.filter(e => e.taskId !== id));
         toast.success('Tarea eliminada');
+        // Refresh data from the server to ensure all panels are in sync
+        loadData();
       } else {
         toast.error('Error al eliminar la tarea');
       }

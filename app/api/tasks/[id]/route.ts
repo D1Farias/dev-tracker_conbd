@@ -38,8 +38,8 @@ export async function DELETE(req: Request, context: any) {
     const { id } = await context.params;
     const db = await connectDB();
     
-    // Desvincular registros de esa tarea
-    await db.query("UPDATE work_entries SET task_id = NULL WHERE task_id = ?", [id]);
+    // Eliminar registros de trabajo asociados a esta tarea
+    await db.query("DELETE FROM work_entries WHERE task_id = ?", [id]);
     // Eliminar la tarea
     await db.query("DELETE FROM tasks WHERE id = ?", [id]);
     
