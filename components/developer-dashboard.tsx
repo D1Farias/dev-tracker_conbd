@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { WorkEntry, Task, getColorBgClass, getColorLightBgClass, getColorTextClass, getColorBorderClass } from "@/lib/data";
@@ -18,10 +18,18 @@ import {
 } from "@/components/ui/select";
 import {
   ChevronLeft, ChevronRight, Calendar, Plus, Pencil, Trash2,
-  Clock, TrendingUp, FolderKanban, AlertCircle, ChevronDown
+  Clock, TrendingUp, FolderKanban, AlertCircle, ChevronDown,
+  ArrowLeftCircle, ArrowRightCircle, GripVertical
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
+
+interface DragInfo {
+  type: 'card' | 'task';
+  projectId: string;
+  date: string;
+  entryId?: string;
+}
 
 function getWeekDates(offset = 0): string[] {
   const today = new Date();
@@ -36,6 +44,13 @@ function getWeekDates(offset = 0): string[] {
   }
   return dates;
 }
+
+const shiftDate = (dateStr: string, days: number): string => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
 
 const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
@@ -116,9 +131,10 @@ function ProjectDayCard({
   entries,
   isFuture,
   onAddTask,
-  onDragStart,
+  onDragStartCard,
+  onDragStartTask,
   onDragEnd,
-  isDragging,
+  draggingInfo,
   isOpen,
   onToggleOpen,
 }: {
@@ -126,9 +142,10 @@ function ProjectDayCard({
   entries: WorkEntry[];
   isFuture: boolean;
   onAddTask: () => void;
-  onDragStart: () => void;
+  onDragStartCard: () => void;
+  onDragStartTask: (entryId: string) => void;
   onDragEnd: () => void;
-  isDragging: boolean;
+  draggingInfo: DragInfo | null;
   isOpen: boolean;
   onToggleOpen: () => void;
 }) {
@@ -142,6 +159,8 @@ function ProjectDayCard({
 
   const getTask = (entry: WorkEntry) =>
     entry.taskId ? tasks.find(t => t.id === entry.taskId) : undefined;
+
+  const isDraggingCard = draggingInfo?.type === 'card' && draggingInfo.projectId === projectId && draggingInfo.date === entries[0]?.date;
 
   return (
     <motion.div layout>
@@ -157,11 +176,11 @@ function ProjectDayCard({
       `}</style>
       <div
         draggable={!isFuture}
-        onDragStart={onDragStart}
+        onDragStart={onDragStartCard}
         onDragEnd={onDragEnd}
-        className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden cursor-grab active:cursor-grabbing transition-opacity ${isDragging ? 'opacity-40' : ''} marquee-hover`}
+        className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden cursor-grab active:cursor-grabbing transition-opacity ${isDraggingCard ? 'opacity-40' : ''} marquee-hover`}
       >
-        <div className="flex items-center justify-between px-2.5 py-2 gap-1">
+        <div className="flex items-center justify-between px-2.5 py-2 gap-1" onMouseDown={e => e.stopPropagation()}>
           {/* Left: project name with marquee (Now clickable) */}
           <button
             onClick={() => onToggleOpen()}
@@ -191,7 +210,7 @@ function ProjectDayCard({
             )}
             {!isFuture && (
               <button
-                onClick={() => onToggleOpen()}
+                onClick={(e) => { e.stopPropagation(); onToggleOpen(); }}
                 className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -202,7 +221,7 @@ function ProjectDayCard({
 
         {/* Visible task count summary — always shown */}
         {!isFuture && entries.length > 0 && (
-          <div className="flex items-center gap-2 px-2.5 pb-1.5">
+          <div className="flex items-center gap-2 px-2.5 pb-1.5" onMouseDown={e => e.stopPropagation()}>
             {(() => {
               const taskList = entries.map(e => e.taskId ? tasks.find(t => t.id === e.taskId) : undefined);
               const inProg = taskList.filter(t => t?.status === 'in-progress').length;
@@ -233,19 +252,36 @@ function ProjectDayCard({
                     : task?.status === "in-progress" ? "text-amber-700 bg-amber-500/20 border-amber-500/30 dark:text-amber-400"
                       : "text-slate-600 bg-slate-500/10 border-slate-500/20";
 
+                const isDraggingTask = draggingInfo?.type === 'task' && draggingInfo.entryId === entry.id;
+
                 return (
-                  <li key={entry.id} className={`flex items-center justify-between gap-1 px-2.5 py-1.5 transition-colors ${task?.status === 'completed' ? 'bg-green-500/5' : ''}`}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-foreground truncate">
-                        {task?.title ?? entry.description}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
-                          {task?.status === "completed" ? "Completado"
-                            : task?.status === "in-progress" ? "En Progreso"
-                              : "Pendiente"}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
+                  <li 
+                    key={entry.id} 
+                    draggable={!isFuture}
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      onDragStartTask(entry.id);
+                    }}
+                    onDragEnd={(e) => {
+                      e.stopPropagation();
+                      onDragEnd();
+                    }}
+                    className={`flex items-center justify-between gap-1 px-2.5 py-1.5 transition-colors group/task hover:bg-black/5 dark:hover:bg-white/5 cursor-grab active:cursor-grabbing ${task?.status === 'completed' ? 'bg-green-500/5' : ''} ${isDraggingTask ? 'opacity-30' : ''}`}
+                  >
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <GripVertical className="h-3 w-3 text-muted-foreground/30 group-hover/task:text-muted-foreground/60 transition-colors shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-medium text-foreground truncate">
+                          {task?.title ?? entry.description}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
+                            {task?.status === "completed" ? "Completado"
+                              : task?.status === "in-progress" ? "En Progreso"
+                                : "Pendiente"}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
+                        </div>
                       </div>
                     </div>
 
@@ -255,7 +291,7 @@ function ProjectDayCard({
                       onOpenChange={open => setOpenPopoverEntryId(open ? entry.id : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-background/80">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-background/80" onMouseDown={e => e.stopPropagation()}>
                           <Pencil className="h-3 w-3" />
                         </Button>
                       </PopoverTrigger>
@@ -285,9 +321,12 @@ export function DeveloperDashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
   const [defaultProjectId, setDefaultProjectId] = useState<string | undefined>(undefined);
-  // Drag state: tracks which project card on which date is being dragged
-  const [dragging, setDragging] = useState<{ projectId: string; date: string } | null>(null);
+  // Drag state: supports both 'card' (group) and 'task' (single entry)
+  const [dragging, setDragging] = useState<DragInfo | null>(null);
   const [dropTargetDate, setDropTargetDate] = useState<string | null>(null);
+  const [dropTargetWeek, setDropTargetWeek] = useState<number | null>(null); // -1: prev, 1: next
+
+  const navTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Map to store expanded state per date and project: 'yyyy-mm-dd:projectId'
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
@@ -298,6 +337,25 @@ export function DeveloperDashboard() {
   };
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const isToday = (ds: string) => ds === today;
+  const isFutureDate = (ds: string) => ds > today;
+
+  // Check if moving to next week is allowed (at least one day must be available / not entirely in future)
+  const canGoToNextWeek = useMemo(() => {
+    const nextWeekDates = getWeekDates(weekOffset + 1);
+    // If ANY day in the next week is NOT future, it's allowed.
+    // Or if there's at least one non-future day available.
+    return nextWeekDates.some(d => !isFutureDate(d));
+  }, [weekOffset, today]);
+
+  useEffect(() => {
+    return () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    };
+  }, []);
 
   const myEntries = useMemo(() => {
     if (!user) return [];
@@ -328,13 +386,50 @@ export function DeveloperDashboard() {
     return `${fmt(weekDates[0], { day: "numeric", month: "short" })} – ${fmt(weekDates[4], { day: "numeric", month: "short", year: "numeric" })}`;
   };
 
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const isToday = (ds: string) => ds === today;
-  const isFutureDate = (ds: string) => ds > today;
+  const handleDragOverWeekZone = (direction: number) => {
+    if (!dragging) return;
+    
+    // Restriction: Can't move to a future-only week when dragging
+    if (direction === 1 && !canGoToNextWeek) {
+      setDropTargetWeek(null);
+      return; 
+    }
+
+    if (dropTargetWeek !== direction) {
+      setDropTargetWeek(direction);
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+      navTimerRef.current = setTimeout(() => {
+        setWeekOffset(o => o + direction);
+        toast.info(direction === 1 ? 'Cambiando a semana siguiente...' : 'Cambiando a semana anterior...');
+      }, 600);
+    }
+  };
+
+  const clearNavTimer = () => {
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = null;
+    setDropTargetWeek(null);
+  };
+
+  const handleCrossWeekDrop = (direction: number) => {
+    if (!dragging) return;
+    setDropTargetWeek(null);
+    const newDate = shiftDate(dragging.date, direction * 7);
+    
+    if (dragging.type === 'task' && dragging.entryId) {
+      updateWorkEntry(dragging.entryId, { date: newDate }, true);
+      toast.success('Tarea movida exitosamente');
+    } else {
+      workEntries
+        .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
+        .forEach(en => updateWorkEntry(en.id, { date: newDate }, true));
+      toast.success(`Proyecto movido a la semana ${direction === 1 ? 'siguiente' : 'anterior'}`);
+    }
+    setDragging(null);
+  };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Header />
       <motion.main 
         initial={{ opacity: 0, y: 10 }}
@@ -405,124 +500,156 @@ export function DeveloperDashboard() {
           ))}
         </div>
 
-        {/* Weekly grid */}
-        <div className="grid grid-cols-5 gap-4">
-          {weekDates.map((date, index) => {
-            const entries = getEntriesForDate(date);
-            const totalHours = entries.reduce((s, e) => s + e.hours, 0);
-            const isFuture = isFutureDate(date);
-            const isDragOver = dropTargetDate === date && dragging?.date !== date;
-
-            // Group entries by projectId
-            const projectGroups = entries.reduce<Record<string, WorkEntry[]>>((acc, e) => {
-              if (!acc[e.projectId]) acc[e.projectId] = [];
-              acc[e.projectId].push(e);
-              return acc;
-            }, {});
-
-            return (
-              <motion.div
-                key={date}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Card
-                  className={`border-border/50 h-full transition-all ${isToday(date) ? "ring-2 ring-primary" : ""} ${isFuture ? "opacity-50 bg-muted/30" : ""} ${isDragOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
-                  onDragOver={e => { if (!isFuture && dragging) { e.preventDefault(); setDropTargetDate(date); } }}
-                  onDragLeave={() => setDropTargetDate(null)}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setDropTargetDate(null);
-                    if (!dragging || isFuture || dragging.date === date) return;
-
-                    // Preserve expanded state if the card was open
-                    const oldKey = `${dragging.date}:${dragging.projectId}`;
-                    const newKey = `${date}:${dragging.projectId}`;
-                    if (expandedCards[oldKey]) {
-                      setExpandedCards(prev => {
-                        const next = { ...prev };
-                        delete next[oldKey];
-                        next[newKey] = true;
-                        return next;
-                      });
-                    }
-
-                    // Move all entries of that project card to new date
-                    workEntries
-                      .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
-                      .forEach(en => updateWorkEntry(en.id, { date }, true));
-                    toast.success('Proyecto movido');
-                    setDragging(null);
-                  }}
+        {/* Weekly grid container for side drop zones */}
+        <div className="relative group/grid">
+          {/* Side Drop Zones (Portal Mode) */}
+          <AnimatePresence>
+            {dragging && (
+              <>
+                {/* Previous Week zone */}
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  onDragOver={(e) => { e.preventDefault(); handleDragOverWeekZone(-1); }}
+                  onDragLeave={clearNavTimer}
+                  className={`absolute -left-12 top-0 bottom-0 w-10 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-colors z-10 ${dropTargetWeek === -1 ? 'bg-primary/20 border-primary text-primary' : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'}`}
                 >
-                  <CardHeader className="p-3 pb-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{dayNames[index]}</p>
-                        <div className="flex items-baseline gap-1">
-                          <CardTitle className="text-2xl">{formatDate(date)}</CardTitle>
-                          <span className="text-xs text-muted-foreground uppercase">{formatMonth(date)}</span>
+                  <ArrowLeftCircle className="w-6 h-6" />
+                  <span className="[writing-mode:vertical-lr] rotate-180 text-[10px] font-bold uppercase tracking-widest">Semana Anterior</span>
+                </motion.div>
+
+                {/* Next Week zone */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  onDragOver={(e) => { e.preventDefault(); handleDragOverWeekZone(1); }}
+                  onDragLeave={clearNavTimer}
+                  className={`absolute -right-12 top-0 bottom-0 w-10 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-colors z-10 ${dropTargetWeek === 1 ? 'bg-primary/20 border-primary text-primary' : (weekOffset >= 0 && !canGoToNextWeek) ? 'opacity-20 pointer-events-none grayscale' : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'}`}
+                >
+                  <ArrowRightCircle className="w-6 h-6" />
+                  <span className="[writing-mode:vertical-lr] text-[10px] font-bold uppercase tracking-widest">Semana Siguiente</span>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* Weekly grid */}
+          <div className="grid grid-cols-5 gap-4">
+            {weekDates.map((date, index) => {
+              const entries = getEntriesForDate(date);
+              const totalHours = entries.reduce((s, e) => s + e.hours, 0);
+              const isFuture = isFutureDate(date);
+              const isDragOver = dropTargetDate === date && (dragging?.date !== date || weekOffset !== 0);
+
+              // Group entries by projectId
+              const projectGroups = entries.reduce<Record<string, WorkEntry[]>>((acc, e) => {
+                if (!acc[e.projectId]) acc[e.projectId] = [];
+                acc[e.projectId].push(e);
+                return acc;
+              }, {});
+
+              return (
+                <motion.div
+                  key={date}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card
+                    className={`border-border/50 h-full transition-all ${isToday(date) ? "ring-2 ring-primary" : ""} ${isFuture ? "opacity-50 bg-muted/30" : ""} ${isDragOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
+                    onDragOver={e => { if (!isFuture && dragging) { e.preventDefault(); setDropTargetDate(date); } }}
+                    onDragLeave={() => setDropTargetDate(null)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setDropTargetDate(null);
+                      if (!dragging || isFuture) return;
+
+                      if (dragging.type === 'task' && dragging.entryId) {
+                        // Move only the specific task
+                        updateWorkEntry(dragging.entryId, { date }, true);
+                        toast.success('Tarea movida exitosamente');
+                      } else {
+                        // Move all entries of that project card to new date
+                        workEntries
+                          .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
+                          .forEach(en => updateWorkEntry(en.id, { date }, true));
+                        toast.success('Proyecto movido exitosamente');
+                      }
+                      
+                      setDragging(null);
+                    }}
+                  >
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">{dayNames[index]}</p>
+                          <div className="flex items-baseline gap-1">
+                            <CardTitle className="text-2xl">{formatDate(date)}</CardTitle>
+                            <span className="text-xs text-muted-foreground uppercase">{formatMonth(date)}</span>
+                          </div>
                         </div>
+                        {isToday(date) && <Badge variant="default" className="text-xs">Hoy</Badge>}
+                        {isFuture && <Badge variant="outline" className="text-xs text-muted-foreground">Futuro</Badge>}
                       </div>
-                      {isToday(date) && <Badge variant="default" className="text-xs">Hoy</Badge>}
-                      {isFuture && <Badge variant="outline" className="text-xs text-muted-foreground">Futuro</Badge>}
-                    </div>
-                  </CardHeader>
+                    </CardHeader>
 
-                  <CardContent className="p-3 pt-0 space-y-2 flex flex-col h-[calc(100%-65px)]">
-                    <div className="space-y-2 flex-1 min-h-[100px]">
-                      {/* One project card per unique project */}
-                      {Object.entries(projectGroups).map(([projectId, projEntries]) => (
-                        <ProjectDayCard
-                          key={projectId}
-                          projectId={projectId}
-                          entries={projEntries}
-                          isFuture={isFuture}
-                          onAddTask={() => {
-                            setSelectedDate(date);
-                            setDefaultProjectId(projectId);
-                            setDialogOpen(true);
-                          }}
-                          onDragStart={() => setDragging({ projectId, date })}
-                          onDragEnd={() => { setDragging(null); setDropTargetDate(null); }}
-                          isDragging={dragging?.projectId === projectId && dragging?.date === date}
-                          isOpen={!!expandedCards[`${date}:${projectId}`]}
-                          onToggleOpen={() => toggleCard(date, projectId)}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Total row */}
-                    {totalHours > 0 && (
-                      <div className="flex items-center justify-end gap-1 pt-1 border-t border-border/30">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs font-medium text-muted-foreground">{totalHours}h total</span>
+                    <CardContent className="p-3 pt-0 space-y-2 flex flex-col h-[calc(100%-65px)]">
+                      <div className="space-y-2 flex-1 min-h-[100px]">
+                        {/* One project card per unique project */}
+                        {Object.entries(projectGroups).map(([projectId, projEntries]) => (
+                          <ProjectDayCard
+                            key={projectId}
+                            projectId={projectId}
+                            entries={projEntries}
+                            isFuture={isFuture}
+                            onAddTask={() => {
+                              setSelectedDate(date);
+                              setDefaultProjectId(projectId);
+                              setDialogOpen(true);
+                            }}
+                            onDragStartCard={() => setDragging({ type: 'card', projectId, date })}
+                            onDragStartTask={(entryId) => setDragging({ type: 'task', entryId, projectId, date })}
+                            onDragEnd={() => { setDragging(null); setDropTargetDate(null); clearNavTimer(); }}
+                            draggingInfo={dragging}
+                            isOpen={!!expandedCards[`${date}:${projectId}`]}
+                            onToggleOpen={() => toggleCard(date, projectId)}
+                          />
+                        ))}
                       </div>
-                    )}
 
-                    {/* Add button */}
-                    <div className="mt-2">
-                      {isFuture ? (
-                        <div className="w-full h-8 flex items-center justify-center">
-                          <span className="text-xs text-muted-foreground/50">Bloqueado</span>
+                      {/* Total row */}
+                      {totalHours > 0 && (
+                        <div className="flex items-center justify-end gap-1 pt-1 border-t border-border/30">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs font-medium text-muted-foreground">{totalHours}h total</span>
                         </div>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full h-8 border border-dashed border-border/50 text-muted-foreground hover:text-foreground"
-                          onClick={() => { setSelectedDate(date); setDefaultProjectId(undefined); setDialogOpen(true); }}
-                        >
-                          <Plus className="h-3 w-3 mr-1" /> Añadir
-                        </Button>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
+
+                      {/* Add button */}
+                      <div className="mt-2">
+                        {isFuture ? (
+                          <div className="w-full h-8 flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground/50">Bloqueado</span>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 border border-dashed border-border/50 text-muted-foreground hover:text-foreground"
+                            onClick={() => { setSelectedDate(date); setDefaultProjectId(undefined); setDialogOpen(true); }}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Añadir
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       </motion.main>
 
