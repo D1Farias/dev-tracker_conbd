@@ -9,6 +9,7 @@ import { ProjectLegend } from "./project-legend";
 import { ManageProjectsDialog } from "./manage-projects-dialog";
 import { ManageUsersDialog } from "./manage-users-dialog";
 import { ManageTasksDialog } from "./manage-tasks-dialog";
+import { ProjectPreviewDialog } from "./project-preview-dialog";
 import { DeveloperActivityChart } from "./developer-activity-chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ export function AdminDashboard() {
   const [showProjectsDialog, setShowProjectsDialog] = useState(false);
   const [showUsersDialog, setShowUsersDialog] = useState(false);
   const [showTasksDialog, setShowTasksDialog] = useState(false);
+  const [previewProjectId, setPreviewProjectId] = useState<string | null>(null);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
 
@@ -101,7 +103,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Legend */}
-        <ProjectLegend />
+        <ProjectLegend onProjectClick={setPreviewProjectId} />
 
         {/* Weekly View */}
         <WeeklyView
@@ -114,6 +116,13 @@ export function AdminDashboard() {
       <ManageProjectsDialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog} />
       <ManageUsersDialog open={showUsersDialog} onOpenChange={setShowUsersDialog} />
       <ManageTasksDialog open={showTasksDialog} onOpenChange={setShowTasksDialog} />
+
+      <ProjectPreviewDialog
+        projectId={previewProjectId}
+        open={!!previewProjectId}
+        onOpenChange={(open) => !open && setPreviewProjectId(null)}
+        viewMode="admin"
+      />
     </div>
   );
 }
