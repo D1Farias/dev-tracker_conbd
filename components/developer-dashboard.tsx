@@ -21,6 +21,7 @@ import {
   Clock, TrendingUp, FolderKanban, AlertCircle, ChevronDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { motion, AnimatePresence } from "framer-motion";
 
 function getWeekDates(offset = 0): string[] {
   const today = new Date();
@@ -143,7 +144,7 @@ function ProjectDayCard({
     entry.taskId ? tasks.find(t => t.id === entry.taskId) : undefined;
 
   return (
-    <>
+    <motion.div layout>
       {/* Marquee keyframe */}
       <style>{`
         @keyframes marquee-scroll {
@@ -160,113 +161,120 @@ function ProjectDayCard({
         onDragEnd={onDragEnd}
         className={`rounded-lg border-l-[3px] ${getColorLightBgClass(project.color)} ${getColorBorderClass(project.color)} overflow-hidden cursor-grab active:cursor-grabbing transition-opacity ${isDragging ? 'opacity-40' : ''} marquee-hover`}
       >
-      <div className="flex items-center justify-between px-2.5 py-2 gap-1">
-        {/* Left: project name with marquee (Now clickable) */}
-        <button
-          onClick={() => onToggleOpen()}
-          className="overflow-hidden max-w-[90px] shrink-0 text-left hover:opacity-80 transition-opacity"
-        >
-          <Badge
-            variant="secondary"
-            className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent whitespace-nowrap block marquee-text`}
+        <div className="flex items-center justify-between px-2.5 py-2 gap-1">
+          {/* Left: project name with marquee (Now clickable) */}
+          <button
+            onClick={() => onToggleOpen()}
+            className="overflow-hidden max-w-[90px] shrink-0 text-left hover:opacity-80 transition-opacity"
           >
-            {project.name}
-          </Badge>
-        </button>
+            <Badge
+              variant="secondary"
+              className={`text-[10px] px-1.5 py-0 h-4 ${getColorTextClass(project.color)} bg-transparent whitespace-nowrap block marquee-text`}
+            >
+              {project.name}
+            </Badge>
+          </button>
 
-        {/* Right: hours + add + task toggle */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className={`text-[10px] font-semibold ${getColorTextClass(project.color)}`}>
-            {totalHours}h
-          </span>
-          {!isFuture && (
-            <button
-              onClick={e => { e.stopPropagation(); onAddTask(); }}
-              title="Añadir tarea"
-              className={`h-5 w-5 flex items-center justify-center rounded border border-current hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${getColorTextClass(project.color)} bg-white/40 dark:bg-black/20 shadow-sm`}
-            >
-              <Plus className="h-3 w-3" />
-            </button>
-          )}
-          {!isFuture && (
-            <button
-              onClick={() => onToggleOpen()}
-              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-            </button>
-          )}
+          {/* Right: hours + add + task toggle */}
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-[10px] font-semibold ${getColorTextClass(project.color)}`}>
+              {totalHours}h
+            </span>
+            {!isFuture && (
+              <button
+                onClick={e => { e.stopPropagation(); onAddTask(); }}
+                title="Añadir tarea"
+                className={`h-5 w-5 flex items-center justify-center rounded border border-current hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${getColorTextClass(project.color)} bg-white/40 dark:bg-black/20 shadow-sm`}
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            )}
+            {!isFuture && (
+              <button
+                onClick={() => onToggleOpen()}
+                className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Visible task count summary — always shown */}
+        {!isFuture && entries.length > 0 && (
+          <div className="flex items-center gap-2 px-2.5 pb-1.5">
+            {(() => {
+              const taskList = entries.map(e => e.taskId ? tasks.find(t => t.id === e.taskId) : undefined);
+              const inProg = taskList.filter(t => t?.status === 'in-progress').length;
+              const done = taskList.filter(t => t?.status === 'completed').length;
+              return (
+                <>
+                  {inProg > 0 && <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1 py-0.5 rounded-sm font-medium">{inProg} en progreso</span>}
+                  {done > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium">{done} completada{done > 1 ? 's' : ''}</span>}
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Task list dropdown */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.ul 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-border/60 divide-y divide-slate-400 dark:divide-slate-500 overflow-hidden"
+            >
+              {entries.map(entry => {
+                const task = getTask(entry);
+                const statusColor =
+                  task?.status === "completed" ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-400"
+                    : task?.status === "in-progress" ? "text-amber-700 bg-amber-500/20 border-amber-500/30 dark:text-amber-400"
+                      : "text-slate-600 bg-slate-500/10 border-slate-500/20";
+
+                return (
+                  <li key={entry.id} className={`flex items-center justify-between gap-1 px-2.5 py-1.5 transition-colors ${task?.status === 'completed' ? 'bg-green-500/5' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-foreground truncate">
+                        {task?.title ?? entry.description}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
+                          {task?.status === "completed" ? "Completado"
+                            : task?.status === "in-progress" ? "En Progreso"
+                              : "Pendiente"}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
+                      </div>
+                    </div>
+
+                    {/* Edit popover */}
+                    <Popover
+                      open={openPopoverEntryId === entry.id}
+                      onOpenChange={open => setOpenPopoverEntryId(open ? entry.id : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-background/80">
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent side="right" align="start" className="w-52 p-3">
+                        <TaskEditPopover
+                          entry={entry}
+                          task={task}
+                          onClose={() => setOpenPopoverEntryId(null)}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </li>
+                );
+              })}
+            </motion.ul>
+          )}
+        </AnimatePresence>
       </div>
-
-      {/* Visible task count summary — always shown */}
-      {!isFuture && entries.length > 0 && (
-        <div className="flex items-center gap-2 px-2.5 pb-1.5">
-          {(() => {
-            const taskList = entries.map(e => e.taskId ? tasks.find(t => t.id === e.taskId) : undefined);
-            const inProg = taskList.filter(t => t?.status === 'in-progress').length;
-            const done   = taskList.filter(t => t?.status === 'completed').length;
-            return (
-              <>
-                {inProg > 0 && <span className="text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1 py-0.5 rounded-sm font-medium">{inProg} en progreso</span>}
-                {done  > 0 && <span className="text-[9px] bg-green-500/10 text-green-600 border border-green-500/20 px-1 py-0.5 rounded-sm font-medium">{done} completada{done>1?'s':''}</span>}
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Task list dropdown */}
-      {isOpen && (
-        <ul className="border-t border-border/60 divide-y divide-slate-400 dark:divide-slate-500">
-          {entries.map(entry => {
-            const task = getTask(entry);
-            const statusColor =
-              task?.status === "completed" ? "text-green-700 bg-green-500/20 border-green-500/30 dark:text-green-400"
-              : task?.status === "in-progress" ? "text-amber-700 bg-amber-500/20 border-amber-500/30 dark:text-amber-400"
-              : "text-slate-600 bg-slate-500/10 border-slate-500/20";
-
-            return (
-              <li key={entry.id} className={`flex items-center justify-between gap-1 px-2.5 py-1.5 transition-colors ${task?.status === 'completed' ? 'bg-green-500/5' : ''}`}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium text-foreground truncate">
-                    {task?.title ?? entry.description}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className={`text-[9px] px-1 h-3.5 border font-semibold ${statusColor}`}>
-                      {task?.status === "completed" ? "Completado"
-                        : task?.status === "in-progress" ? "En Progreso"
-                        : "Pendiente"}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground font-medium">{entry.hours}h</span>
-                  </div>
-                </div>
-
-                {/* Edit popover */}
-                <Popover
-                  open={openPopoverEntryId === entry.id}
-                  onOpenChange={open => setOpenPopoverEntryId(open ? entry.id : null)}
-                >
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-background/80">
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="right" align="start" className="w-52 p-3">
-                    <TaskEditPopover
-                      entry={entry}
-                      task={task}
-                      onClose={() => setOpenPopoverEntryId(null)}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-    </>
+    </motion.div>
   );
 }
 
@@ -328,7 +336,12 @@ export function DeveloperDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <motion.main 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="container mx-auto px-4 py-6 space-y-6"
+      >
         {error && (
           <div className="bg-destructive/15 text-destructive border border-destructive/50 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 mt-0.5" />
@@ -341,39 +354,30 @@ export function DeveloperDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10"><Clock className="h-5 w-5 text-blue-500" /></div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalHours}h</p>
-                  <p className="text-xs text-muted-foreground">Esta semana</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/10"><FolderKanban className="h-5 w-5 text-green-500" /></div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.projectsWorked}</p>
-                  <p className="text-xs text-muted-foreground">Proyectos</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-500/10"><TrendingUp className="h-5 w-5 text-orange-500" /></div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.avgPerDay}h</p>
-                  <p className="text-xs text-muted-foreground">Promedio/día</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {[
+            { label: "Esta semana", value: `${stats.totalHours}h`, icon: Clock, color: "text-blue-500", bg: "bg-blue-500/10" },
+            { label: "Proyectos", value: stats.projectsWorked, icon: FolderKanban, color: "text-green-500", bg: "bg-green-500/10" },
+            { label: "Promedio/día", value: `${stats.avgPerDay}h`, icon: TrendingUp, color: "text-orange-500", bg: "bg-orange-500/10" }
+          ].map((s, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${s.bg}`}><s.icon className={`h-5 w-5 ${s.color}`} /></div>
+                    <div>
+                      <p className="text-2xl font-bold">{s.value}</p>
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
         {/* Week navigation */}
@@ -417,100 +421,110 @@ export function DeveloperDashboard() {
             }, {});
 
             return (
-              <Card
+              <motion.div
                 key={date}
-                className={`border-border/50 transition-all ${isToday(date) ? "ring-2 ring-primary" : ""} ${isFuture ? "opacity-50 bg-muted/30" : ""} ${isDragOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
-                onDragOver={e => { if (!isFuture && dragging) { e.preventDefault(); setDropTargetDate(date); }}}
-                onDragLeave={() => setDropTargetDate(null)}
-                onDrop={e => {
-                  e.preventDefault();
-                  setDropTargetDate(null);
-                  if (!dragging || isFuture || dragging.date === date) return;
-
-                  // Preserve expanded state if the card was open
-                  const oldKey = `${dragging.date}:${dragging.projectId}`;
-                  const newKey = `${date}:${dragging.projectId}`;
-                  if (expandedCards[oldKey]) {
-                    setExpandedCards(prev => {
-                      const next = { ...prev };
-                      delete next[oldKey];
-                      next[newKey] = true;
-                      return next;
-                    });
-                  }
-
-                  // Move all entries of that project card to new date
-                  workEntries
-                    .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
-                    .forEach(en => updateWorkEntry(en.id, { date }, true));
-                  toast.success('Proyecto movido');
-                  setDragging(null);
-                }}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.05 }}
               >
-                <CardHeader className="p-3 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{dayNames[index]}</p>
-                      <div className="flex items-baseline gap-1">
-                        <CardTitle className="text-2xl">{formatDate(date)}</CardTitle>
-                        <span className="text-xs text-muted-foreground uppercase">{formatMonth(date)}</span>
+                <Card
+                  className={`border-border/50 h-full transition-all ${isToday(date) ? "ring-2 ring-primary" : ""} ${isFuture ? "opacity-50 bg-muted/30" : ""} ${isDragOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
+                  onDragOver={e => { if (!isFuture && dragging) { e.preventDefault(); setDropTargetDate(date); } }}
+                  onDragLeave={() => setDropTargetDate(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDropTargetDate(null);
+                    if (!dragging || isFuture || dragging.date === date) return;
+
+                    // Preserve expanded state if the card was open
+                    const oldKey = `${dragging.date}:${dragging.projectId}`;
+                    const newKey = `${date}:${dragging.projectId}`;
+                    if (expandedCards[oldKey]) {
+                      setExpandedCards(prev => {
+                        const next = { ...prev };
+                        delete next[oldKey];
+                        next[newKey] = true;
+                        return next;
+                      });
+                    }
+
+                    // Move all entries of that project card to new date
+                    workEntries
+                      .filter(en => en.userId === user?.id && en.projectId === dragging.projectId && en.date === dragging.date)
+                      .forEach(en => updateWorkEntry(en.id, { date }, true));
+                    toast.success('Proyecto movido');
+                    setDragging(null);
+                  }}
+                >
+                  <CardHeader className="p-3 pb-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">{dayNames[index]}</p>
+                        <div className="flex items-baseline gap-1">
+                          <CardTitle className="text-2xl">{formatDate(date)}</CardTitle>
+                          <span className="text-xs text-muted-foreground uppercase">{formatMonth(date)}</span>
+                        </div>
                       </div>
+                      {isToday(date) && <Badge variant="default" className="text-xs">Hoy</Badge>}
+                      {isFuture && <Badge variant="outline" className="text-xs text-muted-foreground">Futuro</Badge>}
                     </div>
-                    {isToday(date) && <Badge variant="default" className="text-xs">Hoy</Badge>}
-                    {isFuture && <Badge variant="outline" className="text-xs text-muted-foreground">Futuro</Badge>}
-                  </div>
-                </CardHeader>
+                  </CardHeader>
 
-                <CardContent className="p-3 pt-0 space-y-2">
-                  {/* One project card per unique project */}
-                  {Object.entries(projectGroups).map(([projectId, projEntries]) => (
-                    <ProjectDayCard
-                      key={projectId}
-                      projectId={projectId}
-                      entries={projEntries}
-                      isFuture={isFuture}
-                      onAddTask={() => {
-                        setSelectedDate(date);
-                        setDefaultProjectId(projectId);
-                        setDialogOpen(true);
-                      }}
-                      onDragStart={() => setDragging({ projectId, date })}
-                      onDragEnd={() => { setDragging(null); setDropTargetDate(null); }}
-                      isDragging={dragging?.projectId === projectId && dragging?.date === date}
-                      isOpen={!!expandedCards[`${date}:${projectId}`]}
-                      onToggleOpen={() => toggleCard(date, projectId)}
-                    />
-                  ))}
-
-                  {/* Total row */}
-                  {totalHours > 0 && (
-                    <div className="flex items-center justify-end gap-1 pt-1">
-                      <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-medium text-muted-foreground">{totalHours}h total</span>
+                  <CardContent className="p-3 pt-0 space-y-2 flex flex-col h-[calc(100%-65px)]">
+                    <div className="space-y-2 flex-1 min-h-[100px]">
+                      {/* One project card per unique project */}
+                      {Object.entries(projectGroups).map(([projectId, projEntries]) => (
+                        <ProjectDayCard
+                          key={projectId}
+                          projectId={projectId}
+                          entries={projEntries}
+                          isFuture={isFuture}
+                          onAddTask={() => {
+                            setSelectedDate(date);
+                            setDefaultProjectId(projectId);
+                            setDialogOpen(true);
+                          }}
+                          onDragStart={() => setDragging({ projectId, date })}
+                          onDragEnd={() => { setDragging(null); setDropTargetDate(null); }}
+                          isDragging={dragging?.projectId === projectId && dragging?.date === date}
+                          isOpen={!!expandedCards[`${date}:${projectId}`]}
+                          onToggleOpen={() => toggleCard(date, projectId)}
+                        />
+                      ))}
                     </div>
-                  )}
 
-                  {/* Add button */}
-                  {isFuture ? (
-                    <div className="w-full h-8 flex items-center justify-center">
-                      <span className="text-xs text-muted-foreground/50">No disponible</span>
+                    {/* Total row */}
+                    {totalHours > 0 && (
+                      <div className="flex items-center justify-end gap-1 pt-1 border-t border-border/30">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">{totalHours}h total</span>
+                      </div>
+                    )}
+
+                    {/* Add button */}
+                    <div className="mt-2">
+                      {isFuture ? (
+                        <div className="w-full h-8 flex items-center justify-center">
+                          <span className="text-xs text-muted-foreground/50">Bloqueado</span>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full h-8 border border-dashed border-border/50 text-muted-foreground hover:text-foreground"
+                          onClick={() => { setSelectedDate(date); setDefaultProjectId(undefined); setDialogOpen(true); }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Añadir
+                        </Button>
+                      )}
                     </div>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full h-8 border border-dashed border-border/50 text-muted-foreground hover:text-foreground"
-                      onClick={() => { setSelectedDate(date); setDefaultProjectId(undefined); setDialogOpen(true); }}
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> Añadir
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </motion.div>
             );
           })}
         </div>
-      </main>
+      </motion.main>
 
       <AddWorkEntryDialog
         open={dialogOpen}

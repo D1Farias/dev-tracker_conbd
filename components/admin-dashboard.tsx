@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Settings, Users, ClipboardList, BarChart2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 function getWeekDates(offset: number = 0): string[] {
   const today = new Date();
@@ -49,7 +50,12 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <motion.main 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="container mx-auto px-4 py-6 space-y-6"
+      >
         {/* Stats */}
         <StatsCards weekDates={weekDates} />
 
@@ -103,7 +109,7 @@ export function AdminDashboard() {
           selectedProject={selectedProject}
           selectedDeveloper={selectedDeveloper}
         />
-      </main>
+      </motion.main>
 
       <ManageProjectsDialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog} />
       <ManageUsersDialog open={showUsersDialog} onOpenChange={setShowUsersDialog} />

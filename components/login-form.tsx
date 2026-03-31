@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Users, Lock, Mail, AlertCircle } from "lucide-react";
+import { motion } from "framer-motion";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -31,7 +32,12 @@ export function LoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
+      >
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
             <Users className="w-8 h-8 text-primary" />
@@ -115,7 +121,7 @@ export function LoginForm() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     </div>
   );
 }
